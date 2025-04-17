@@ -1,0 +1,17 @@
+plugins {
+    id 'java'
+    id 'net.neoforged.moddev' version '1.0.21'
+}
+
+neoForge {
+    version = '21.1.148'
+
+    runs {
+        client { client() }
+        server { server() }
+    }
+}
+
+dependencies {
+    implementation(project(':core'))
+}

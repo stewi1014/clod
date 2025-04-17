@@ -1,0 +1,19 @@
+plugins {
+    id 'java'
+    id 'net.minecraftforge.gradle' version '[6.0.24,6.2)'
+}
+
+minecraft {
+    mappings channel: 'official', version: '1.19.4'
+
+    runs {
+        client {}
+        server {}
+    }
+}
+
+dependencies {
+    minecraft "net.minecraftforge:forge:1.19.4-45.4.0"
+
+    implementation(project(':core'))
+}

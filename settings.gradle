@@ -1,0 +1,129 @@
+pluginManagement {
+    repositories {
+        mavenCentral()
+        gradlePluginPortal()
+        maven { url = 'https://maven.fabricmc.net/' }
+        maven { url = 'https://maven.minecraftforge.net/' }
+    }
+}
+
+def build_all_file = file("build_all_targets.sh")
+build_all_file.delete()
+build_all_file.createNewFile()
+build_all_file.setExecutable(true, false)
+build_all_file.append("#!/bin/env bash\n")
+
+void target(String subProjectDirName, String target) {
+    def name = "${subProjectDirName}-${target}"
+    def subProjectDirFile = file(subProjectDirName)
+
+    file("build_all_targets.sh").append("gradle ${name}:build\n")
+
+    if (gradle.startParameter.taskNames.any{it.split(":").find { !it.isEmpty() }.startsWith(subProjectDirName) }) {
+        if (!gradle.startParameter.taskNames.any{it.split(":").find { !it.isEmpty() } == name})
+            return
+
+    } else if (providers.gradleProperty("${subProjectDirName}.default_target").isPresent()) {
+        if (providers.gradleProperty("${subProjectDirName}.default_target").getOrNull() != target)
+            return
+    }
+
+    for (var i : rootProject.children) {
+        if (i.projectDir.path == subProjectDirFile.path) {
+            println("Skipping ${name} - only one target per subproject can be built at a time. ${i.name} already exists.")
+            return
+        }
+    }
+
+    include(name)
+    def subProject = project(":" + name)
+    subProject.setName(name)
+    subProject.setBuildFileName("targets/${target}.gradle")
+    subProject.setProjectDir(subProjectDirFile)
+}
+
+include 'core', 'api', 'clod'
+
+target('fabric', '1.21.5')
+target('fabric', '1.21.4')
+target('fabric', '1.21.3')
+target('fabric', '1.21.1')
+target('fabric', '1.21.0')
+target('fabric', '1.20.6')
+target('fabric', '1.20.4')
+target('fabric', '1.20.3')
+target('fabric', '1.20.2')
+target('fabric', '1.20.1')
+target('fabric', '1.20.0')
+target('fabric', '1.19.4')
+target('fabric', '1.19.3')
+target('fabric', '1.19.2')
+target('fabric', '1.19.1')
+target('fabric', '1.19.0')
+target('fabric', '1.18.2')
+target('fabric', '1.18.1')
+target('fabric', '1.18.0')
+target('fabric', '1.17.1')
+
+target('neoforge', '1.21.5')
+target('neoforge', '1.21.4')
+target('neoforge', '1.21.3')
+target('neoforge', '1.21.1')
+target('neoforge', '1.21.0')
+target('forge', '1.20.6')
+target('forge', '1.20.4')
+target('forge', '1.20.3')
+target('forge', '1.20.2')
+target('forge', '1.20.1')
+target('forge', '1.20.0')
+target('forge', '1.19.4')
+target('forge', '1.19.3')
+target('forge', '1.19.2')
+target('forge', '1.19.1')
+target('forge', '1.19.0')
+target('forge', '1.18.2')
+target('forge', '1.18.1')
+target('forge', '1.18.0')
+target('forge', '1.17.1')
+
+target('paper', '1.21.5')
+target('paper', '1.21.4')
+target('paper', '1.21.3')
+target('paper', '1.21.1')
+target('paper', '1.21.0')
+target('paper', '1.20.6')
+target('paper', '1.20.4')
+target('paper', '1.20.3')
+target('paper', '1.20.2')
+target('paper', '1.20.1')
+target('paper', '1.20.0')
+target('paper', '1.19.4')
+target('paper', '1.19.3')
+target('paper', '1.19.2')
+target('paper', '1.19.1')
+target('paper', '1.19.0')
+target('paper', '1.18.2')
+target('paper', '1.18.1')
+target('paper', '1.18.0')
+target('paper', '1.17.1')
+
+target('spigot', '1.21.5')
+target('spigot', '1.21.4')
+target('spigot', '1.21.3')
+target('spigot', '1.21.1')
+target('spigot', '1.21.0')
+target('spigot', '1.20.6')
+target('spigot', '1.20.4')
+target('spigot', '1.20.3')
+target('spigot', '1.20.2')
+target('spigot', '1.20.1')
+target('spigot', '1.20.0')
+target('spigot', '1.19.4')
+target('spigot', '1.19.3')
+target('spigot', '1.19.2')
+target('spigot', '1.19.1')
+target('spigot', '1.19.0')
+target('spigot', '1.18.2')
+target('spigot', '1.18.1')
+target('spigot', '1.18.0')
+target('spigot', '1.17.1')

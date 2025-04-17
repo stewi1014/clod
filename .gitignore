@@ -1,0 +1,6 @@
+build
+.gradle
+.idea
+.vscode
+run
+build_all_targets.sh
