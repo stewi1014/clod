@@ -1,6 +1,9 @@
 project('CLOD', 'c', version: '1.0', default_options: ['c_std=c23'])
 
 # Dependencies
+liblz4_proj = subproject('liblz4')
+liblz4_dep = liblz4_proj.get_variable('liblz4_dep')
+
 libzstd_proj = subproject('libzstd')
 libzstd_dep = libzstd_proj.get_variable('libzstd_dep')
 
@@ -18,7 +21,7 @@ libclod = library(
     libclod_sources,
     version: '1.0',
     soversion: '1',
-    dependencies: [libzstd_dep, liblzma_dep],
+    dependencies: [libzstd_dep, liblzma_dep, liblz4_dep],
 )
 libclod_dep = declare_dependency(
     link_with: libclod,

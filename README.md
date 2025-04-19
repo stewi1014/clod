@@ -14,10 +14,8 @@ Kinda tough deciding which of your friends get to die, isn't it? Good news is yo
 You, me, the terminal and the text editor. Kinda sounds like a Eurodyne lyric, I know, but trust me - we'll go fuckin' nova.
 
 ## Building
-Have gradle and meson installed.
+Have gradle and meson installed. If you just want the C stuff, you can hop to the [`clod`](./clod) directory and skip the gradle nonsense.
 
 Some examples; `gradle fabric-1.19.1:runClient`, `gradle fabric-1.20.1:build`, `gradle forge-1.19.4:runClient`, `gradle paper-1.21.5:build` and `gradle neoforge-1.21.0:runServer` all operate as you would expect.
-
-If you just want the C stuff, hop to the `clod` directory and use meson as normal.
 
 `build_all_targets.sh` is generated for convenience.
