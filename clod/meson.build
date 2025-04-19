@@ -15,6 +15,7 @@ libclod_include = include_directories('src/libclod')
 libclod_sources = [
     'src/libclod/clod.h',
     'src/libclod/serialise.c',
+    'src/libclod/region.c',
 ]
 libclod = library(
     'clod',

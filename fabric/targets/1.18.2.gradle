@@ -11,5 +11,5 @@ dependencies {
     modImplementation "net.fabricmc:fabric-loader:0.16.13"
     modImplementation "net.fabricmc.fabric-api:fabric-api:0.77.0+1.18.2"
 
-    implementation(project(':core'))
+    implementation(project(':mod'))
 }

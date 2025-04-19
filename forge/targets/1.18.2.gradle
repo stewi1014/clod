@@ -15,5 +15,5 @@ minecraft {
 dependencies {
     minecraft "net.minecraftforge:forge:1.18.2-40.3.10"
 
-    implementation(project(':core'))
+    implementation(project(':mod'))
 }

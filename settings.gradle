@@ -42,7 +42,7 @@ void target(String subProjectDirName, String target) {
     subProject.setProjectDir(subProjectDirFile)
 }
 
-include 'core', 'api', 'clod'
+include 'mod', 'api', 'clod'
 
 target('fabric', '1.21.5')
 target('fabric', '1.21.4')

@@ -13,5 +13,5 @@ neoForge {
 }
 
 dependencies {
-    implementation(project(':core'))
+    implementation(project(':mod'))
 }
