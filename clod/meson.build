@@ -10,19 +10,23 @@ libzstd_dep = libzstd_proj.get_variable('libzstd_dep')
 liblzma_proj = subproject('liblzma')
 liblzma_dep = liblzma_proj.get_variable('lzma_dep')
 
+sqlite3_proj = subproject('sqlite3')
+sqlite3_dep = sqlite3_proj.get_variable('sqlite3_dep')
+
 # Library
 libclod_include = include_directories('src/libclod')
 libclod_sources = [
     'src/libclod/clod.h',
-    'src/libclod/serialise.c',
     'src/libclod/region.c',
+    'src/libclod/serialise.c',
+    'src/libclod/store.c',
 ]
 libclod = library(
     'clod',
     libclod_sources,
     version: '1.0',
     soversion: '1',
-    dependencies: [libzstd_dep, liblzma_dep, liblz4_dep],
+    dependencies: [libzstd_dep, liblzma_dep, liblz4_dep, sqlite3_dep],
 )
 libclod_dep = declare_dependency(
     link_with: libclod,

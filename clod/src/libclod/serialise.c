@@ -71,7 +71,7 @@ int CLOD_deserialiseSection(struct CLOD_DeserialiseCtx *ctx, struct CLOD_Section
     int error;
     
     bytes_read = fread(buffer, sizeof(buffer), 1, in);
-    if (error = ferror(in) != 0) return error;
+    if ((error = ferror(in)) != 0) return error;
     
     enum CLOD_CompressionAlgo algo = guess_compression(buffer);
     switch (algo) {

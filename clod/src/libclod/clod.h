@@ -1,9 +1,10 @@
 #include <stdio.h>
+#include <stdint.h>
 
 typedef uint64_t CLOD_DataPoint;
 
 struct CLOD_Section {
-    int x, y;
+    int section_x, section_y;
     unsigned char detail_level;
 
     CLOD_DataPoint *data_points[64][64];
@@ -17,6 +18,20 @@ struct CLOD_WorldReader;
 struct CLOD_WorldReader *CLOD_readWorld(char*);
 bool CLOD_readSection(struct CLOD_WorldReader*, struct CLOD_Section*);
 void CLOD_freeWorld(struct CLOD_WorldReader*);
+
+/**
+ * LOD storage
+ */
+
+struct CLOD_Store;
+
+struct CLOD_Store {
+    void (*save_section)(struct CLOD_Store *self, struct CLOD_Section *section);
+    void (*close)(struct CLOD_Store *self);
+};
+
+struct CLOD_Store *CLOD_open_sqlite3(char *path);
+struct CLOD_Store *CLOD_open_postgres(char *url);
 
 /**
  * Serialisation & Deserialisation - HowTo
