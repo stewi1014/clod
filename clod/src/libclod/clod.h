@@ -11,15 +11,6 @@ struct CLOD_Section {
 };
 
 /**
- * WorldParsing
- */
-
-struct CLOD_WorldReader;
-struct CLOD_WorldReader *CLOD_readWorld(char*);
-bool CLOD_readSection(struct CLOD_WorldReader*, struct CLOD_Section*);
-void CLOD_freeWorld(struct CLOD_WorldReader*);
-
-/**
  * LOD storage
  */
 

@@ -4,6 +4,7 @@ _A lump or mass especially of earth or clay_
 #### Examples of clod in a sentence
  - Her husband's such a clod.
  - The ground was thin, with clods of turf washed away by recent rain, and the dark soil beneath had pushed its way to the surface once again.
+ - The [clod](./clod) directory contains the C libraries and executable.
 
 ## Development
 You can use IDEA, but you won't even get syntax highlighting for the C stuff.

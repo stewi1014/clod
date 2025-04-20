@@ -40,9 +40,7 @@ struct CLOD_Store *CLOD_open_sqlite3(char *path) {
 
     sqlite3_prepare_v2(self->db, "select count(data) from FullData", -1, &self->statement, NULL);
 
-    while (sqlite3_step(self->statement) != SQLITE_DONE) {
         printf("%d LOD sections in database \n", sqlite3_column_int(self->statement, 0));
-	}
 
     sqlite3_finalize(self->statement);
 

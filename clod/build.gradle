@@ -12,7 +12,7 @@ tasks.register('build', Exec) {
     dependsOn('configure')
 
     inputs.files fileTree('src')
-    outputs.files 'build/clod', 'build/libclod.so.*.*'
+    outputs.files 'build/clod', 'build/libclod.so.*.*', 'build/libregion.so.*.*'
 
     commandLine('meson', 'compile', '-C', 'build')
 }
