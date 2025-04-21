@@ -7,20 +7,18 @@ pluginManagement {
     }
 }
 
-def build_all_file = file("build_all_targets.sh")
-build_all_file.delete()
-build_all_file.createNewFile()
-build_all_file.setExecutable(true, false)
-build_all_file.append("#!/bin/env bash\n")
+def buildAllFile = file('build_all_targets.sh')
+buildAllFile.text = '#!/bin/env bash\n'
+buildAllFile.setExecutable(true, false)
 
-void target(String subProjectDirName, String target) {
+def target(String subProjectDirName, String target) {
     def name = "${subProjectDirName}-${target}"
     def subProjectDirFile = file(subProjectDirName)
 
-    file("build_all_targets.sh").append("gradle ${name}:build\n")
+    file('build_all_targets.sh').append("gradle ${name}:build\n")
 
-    if (gradle.startParameter.taskNames.any{it.split(":").find { !it.isEmpty() }.startsWith(subProjectDirName) }) {
-        if (!gradle.startParameter.taskNames.any{it.split(":").find { !it.isEmpty() } == name})
+    if (gradle.startParameter.taskNames.any { it.split(":").find { !it.isEmpty() }.startsWith(subProjectDirName) }) {
+        if (!gradle.startParameter.taskNames.any { it.split(":").find { !it.isEmpty() } == name })
             return
 
     } else if (providers.gradleProperty("${subProjectDirName}.default_target").isPresent()) {
@@ -28,12 +26,11 @@ void target(String subProjectDirName, String target) {
             return
     }
 
-    for (var i : rootProject.children) {
+    for (var i : rootProject.children)
         if (i.projectDir.path == subProjectDirFile.path) {
             println("Skipping ${name} - only one target per subproject can be built at a time. ${i.name} already exists.")
             return
         }
-    }
 
     include(name)
     def subProject = project(":" + name)
@@ -42,7 +39,7 @@ void target(String subProjectDirName, String target) {
     subProject.setProjectDir(subProjectDirFile)
 }
 
-include 'mod', 'api', 'clod'
+include 'mod', 'api'
 
 target('fabric', '1.21.5')
 target('fabric', '1.21.4')

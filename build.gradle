@@ -1,0 +1,18 @@
+tasks.register('configureMeson', Exec) {
+    group = 'meson'
+
+    inputs.files 'meson.build', 'cli/meson.build', 'liblod/meson.build', 'libmc/meson.build'
+    outputs.files 'build/compile_commands.json'
+
+    commandLine('meson', 'setup', 'build')
+}
+
+tasks.register('buildMeson', Exec) {
+    group = 'meson'
+    dependsOn('configureMeson')
+
+    inputs.files fileTree('cli/*'), fileTree('liblod/*'), fileTree('libmc/*')
+    outputs.files 'build/cli/clod', 'build/liblod/liblod.so.*.*', 'build/libmc/libmc.so.*.*'
+
+    commandLine('meson', 'compile', '-C', 'build')
+}

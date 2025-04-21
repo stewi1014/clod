@@ -3,29 +3,29 @@
 
 #include <sqlite3.h>
 
-#include "clod.h"
+#include <lod.h>
 
-struct CLOD_Sqlite3Store {
-    struct CLOD_Store iface;
+struct LOD_Sqlite3Store {
+    struct LOD_Store iface;
     sqlite3 *db;
     sqlite3_stmt *statement;
 };
 
-void sqlite3_store_save_section(struct CLOD_Store *self, struct CLOD_Section *section) {
+void sqlite3_store_save_section(struct LOD_Store *self, struct LOD_Section *section) {
     
 }
 
-void sqlite3_store_close(struct CLOD_Store *store) {
-    struct CLOD_Sqlite3Store *self = (struct CLOD_Sqlite3Store*) store;
+void sqlite3_store_close(struct LOD_Store *store) {
+    struct LOD_Sqlite3Store *self = (struct LOD_Sqlite3Store*) store;
     
     sqlite3_close(self->db);
     free(self);
 }
 
-struct CLOD_Store *CLOD_open_sqlite3(char *path) {
+struct LOD_Store *LOD_open_sqlite3(char *path) {
     int error;
 
-    struct CLOD_Sqlite3Store *self = malloc(sizeof(struct CLOD_Sqlite3Store));
+    struct LOD_Sqlite3Store *self = malloc(sizeof(struct LOD_Sqlite3Store));
 
     self->iface.save_section = &sqlite3_store_save_section;
     self->iface.close = &sqlite3_store_close;
@@ -47,6 +47,6 @@ struct CLOD_Store *CLOD_open_sqlite3(char *path) {
     return &self->iface;
 }
 
-struct CLOD_PostgresStore {
-    struct CLOD_Store iface;
+struct LOD_PostgresStore {
+    struct LOD_Store iface;
 };
