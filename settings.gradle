@@ -26,7 +26,7 @@ def target(String subProjectDirName, String target) {
             return
     }
 
-    for (var i : rootProject.children)
+    for (def i : rootProject.children)
         if (i.projectDir.path == subProjectDirFile.path) {
             println("Skipping ${name} - only one target per subproject can be built at a time. ${i.name} already exists.")
             return

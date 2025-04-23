@@ -5,6 +5,7 @@
 
 #include <lod.h>
 
+/*
 struct LOD_Sqlite3Store {
     struct LOD_Store iface;
     sqlite3 *db;
@@ -50,3 +51,5 @@ struct LOD_Store *LOD_open_sqlite3(char *path) {
 struct LOD_PostgresStore {
     struct LOD_Store iface;
 };
+
+*/
