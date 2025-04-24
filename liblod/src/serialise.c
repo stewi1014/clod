@@ -32,17 +32,7 @@ struct LOD_SerialiseCtx *LOD_createSerialiseCtx() {
     return ctx;
 }
 
-int LOD_serialiseSection(struct LOD_SerialiseCtx *ctx, struct LOD_Section* section, FILE *out, union LOD_CompressionOptions opts) {
-    char buffer[BUFFERSIZE];
-    switch (opts.algo) {
-        case LOD_ZSTD:
-            break;
-        case LOD_LZMA:
-            break;
-        case LOD_LZ4:
-            break;
-        }
-}
+int LOD_serialiseSection(struct LOD_SerialiseCtx *ctx, struct LOD_Section* section, FILE *out, union LOD_CompressionOptions opts);
 
 void LOD_freeSerialiseCtx(struct LOD_SerialiseCtx* ctx) {
     if (ctx->zstd_stream != NULL) ZSTD_freeCStream(ctx->zstd_stream);
@@ -65,24 +55,7 @@ struct LOD_DeserialiseCtx *LOD_createDeserialiseCtx() {
     return ctx;
 }
 
-int LOD_deserialiseSection(struct LOD_DeserialiseCtx *ctx, struct LOD_Section* section, FILE *in){
-    char buffer[BUFFERSIZE];
-    size_t bytes_read;
-    int error;
-    
-    bytes_read = fread(buffer, sizeof(buffer), 1, in);
-    if ((error = ferror(in)) != 0) return error;
-    
-    enum LOD_CompressionAlgo algo = guess_compression(buffer);
-    switch (algo) {
-    case LOD_ZSTD:
-        break;
-    case LOD_LZMA:
-        break;
-    case LOD_LZ4:
-        break;
-    }
-}
+int LOD_deserialiseSection(struct LOD_DeserialiseCtx *ctx, struct LOD_Section* section, FILE *in);
 
 void LOD_freeDeserialiseCtx(struct LOD_DeserialiseCtx *ctx){
     if (ctx->zstd_stream != NULL) ZSTD_freeDStream(ctx->zstd_stream);

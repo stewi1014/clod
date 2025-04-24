@@ -1,17 +1,21 @@
 # clod
+
 _A lump or mass especially of earth or clay_
 
 ##### Examples of clod in a sentence
- - Her husband's such a clod.
- - The ground was thin, with clods of turf washed away by recent rain, and the dark soil beneath had pushed its way to the surface once again.
- - The luddites favoured clod due to its avoidance of counterproductive abstractions.
+
+- Her husband's such a clod.
+- The ground was thin, with clods of turf washed away by recent rain, and the dark soil beneath had pushed its way to the surface once again.
+- The luddites favoured clod due to its avoidance of counterproductive abstractions.
 
 ### Structure
- - [cli](./cli) command line interface.
- - [liblod](./liblod) library for dealing with LOD data.
- - [libmc](./libmc) library for dealing with minecraft data.
+
+- [cli](./cli) command line interface.
+- [liblod](./liblod) library for dealing with LOD data.
+- [libmc](./libmc) library for dealing with minecraft data.
 
 ### Development
+
 You can use IDEA, but you won't even get syntax highlighting for the C stuff.
 Or, you can try VSCode and its extensions, but then the java stuff is janky and lacks features.
 Or you give up the fancy-pants features and UI by using an editor like Vim, but then you gotta learn how to use it.
@@ -20,6 +24,7 @@ Kinda tough deciding which of your friends get to die, isn't it? Good news is yo
 You, me, the terminal and the text editor. Kinda sounds like a Eurodyne lyric, I know, but trust me - we'll go fuckin' nova.
 
 ### Building
+
 Use gradle and/or meson as normal. Those unfamilliar with C should note that you're responsible for providing dependencies - typically at the OS level.
 
 To control the modloader and minecraft version, reference the `<modloader>-<minecraft_version>` gradle subproject.
@@ -27,6 +32,7 @@ Some examples; `gradle fabric-1.19.1:runClient`, `gradle fabric-1.20.1:build`, `
 `build_all_targets.sh` is generated for convenience.
 
 ### Platforms
+
 If I'm honest with myself, I can only properly support GCC linux.x86_64 -> linux.x86_64.
 That being said, I would like to support as many target environments as possible.
 If you use a different environment I'd love to merge any patches you make suppporting it.

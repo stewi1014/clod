@@ -1,92 +1,149 @@
-#include "mc.h"
+#include <stdlib.h>
+#include <stdbool.h>
 
-/*
+#include <libdeflate.h>
+#include <lz4.h>
 
-struct MC_ChunkLocation {
-    char sector_count: 8;
-    unsigned int sector_offset: 24;
+#include "region.h"
+
+size_t decompress_deflate(struct region_reader *reader, char *chunk_data, char type);
+
+struct region_reader {
+    char *chunk_data;
+    struct libdeflate_decompressor *decompressor;
+    size_t capacity;
 };
 
-struct MC_RegionFile {
-    struct file_buffer file;
-    struct {
-        char *data;
-        unsigned char sectors;
-        unsigned int last_modified;
-    } chunk[1024];
-};
+struct region_reader *region_reader_alloc() {
+    struct region_reader *reader = malloc(sizeof(struct region_reader));
+    if (reader == NULL) return NULL;
 
-struct MC_RegionFile *MC_open_region_file(char *path) {
-    struct file_buffer file = file_open(path);
-    if (file.data == NULL) return NULL;
+    reader->decompressor = NULL;
+    reader->capacity = 128 * 1024;
+    reader->chunk_data = malloc(reader->capacity);
 
-    struct MC_RegionFile *region_file = malloc(sizeof(struct MC_RegionFile));
-    region_file->file = file;
-
-    char *loc = region_file->file.data;
-    for (int i = 0; i < 1024; i++, loc+=4) {
-        int offset = (loc[0]<<16) + (loc[1]<<8) + loc[2];
-        int sectors = loc[3];
-
-        if (offset == 0 || sectors == 0) {
-            region_file->chunk[i].data = NULL;
-            region_file->chunk[i].sectors = 0;
-        } else {
-            region_file->chunk[i].data = region_file->file.data + offset * 4096;
-            region_file->chunk[i].sectors = sectors;
-        }
+    if (reader->chunk_data == NULL) {
+        free(reader);
+        return NULL;
     }
 
-    for (int i = 0; i < 1024; i++, loc+=4) {
-        int last_modified = (loc[0]<<24) + (loc[1]<<16) + (loc[2]<<8) + loc[3];
-        region_file->chunk[i].last_modified = last_modified;
-    }
-
-    return region_file;
+    return reader;
 }
 
-void MC_close_region_file(struct MC_RegionFile *region_file) {
-    struct file_buffer file = region_file->file;
-    free(region_file);
-    file_close(file);
-}
-
-time_t MC_region_file_mtime(struct MC_RegionFile *region_file) {
-    return region_file->file.last_modified;
-}
-
-time_t MC_region_file_chunk_mtime(struct MC_RegionFile *region_file, int chunk_x, int chunk_z) {
-    return region_file->chunk[(chunk_x&31) + ((chunk_z&31) * 32)].last_modified;
-}
-
-struct MC_ChunkData {
-    char *nbt_data;
-};
-
-struct MC_ChunkData *MC_chunk_data_open(struct MC_RegionFile *region_file, int chunk_x, int chunk_z) {
-    char *data = region_file->chunk[(chunk_x&31) + ((chunk_z&31) * 32)].data;
-    if (data == NULL) return NULL;
+void region_reader_free(struct region_reader *reader) {
+    if (reader == NULL) return;
     
-    unsigned int size = (data[0] << 24) + (data[1]<<16) + (data[2]<<8) + (data[3]) - 1; // -1 because size includes compression_type byte
-    char compression_type = data[4];
-    data = &data[5]; // start of compressed data
+    if (reader->decompressor != NULL) {
+        libdeflate_free_decompressor(reader->decompressor);
+        reader->decompressor = NULL;
+    }
 
-    switch (compression_type) {
-    case 1: // GZip (unused in practice)
-        return NULL;
-    case 2: // Zlib
-        return NULL;
-    case 3: // Uncompressed
-        return NULL;
-    case 4: // LZ4
-        return NULL;
-    default:
+    if (reader->chunk_data != NULL) {
+        free(reader->chunk_data);
+        reader->chunk_data = NULL;
+    }
+
+    return;
+}
+
+#define REGION_COMPRESSION_GZIP 1
+#define REGION_COMPRESSION_ZLIB 2
+#define REGION_COMPRESSION_UNCOMPRESSED 3
+#define REGION_COMPRESSION_LZ4 4
+#define REGION_COMPRESSION_CUSTOM 127
+
+char *region_read_chunk(struct region_reader *reader, char *region, int chunk_x, int chunk_z) {
+    if (region == NULL) return NULL;
+
+    int chunk_index = ((chunk_x & 31) + (chunk_z & 31) * 32);
+    int offset = 
+        ((int)region[0 + 4 * chunk_index] << 16) |
+        ((int)region[1 + 4 * chunk_index] << 8) |
+        ((int)region[2 + 4 * chunk_index]);
+    char sectors =
+        region[3 + 4 * chunk_index];
+
+    if (offset < 2 || sectors == 0) return NULL;
+
+    char *chunk_data = region + 4096 * offset;
+
+    switch (chunk_data[4]) {
+    case REGION_COMPRESSION_GZIP: 
+    case REGION_COMPRESSION_ZLIB: {
+        bool free_reader = false;
+        if (reader == NULL) {
+            reader = region_reader_alloc();
+            if (reader == NULL) return NULL;
+            free_reader = true;
+        }
+
+        size_t decompressed_size = decompress_deflate(reader, chunk_data, chunk_data[4]);
+        if (decompressed_size == 0) {
+            if (free_reader) region_reader_free(reader);
+            return NULL;
+        }
+        return reader->chunk_data;
+    }
+    case REGION_COMPRESSION_UNCOMPRESSED: return &chunk_data[5]; //lol
+    case REGION_COMPRESSION_LZ4: {
         return NULL;
     }
+    case REGION_COMPRESSION_CUSTOM: {
+        return NULL;
+    }
+    }
+
+    return NULL;
 }
 
-void MC_chunk_data_close(struct MC_ChunkData *chunk_data) {
+size_t decompress_deflate(struct region_reader *reader, char *chunk_data, char type) {
+    int chunk_size =
+        ((int)chunk_data[0] << 24) |
+        ((int)chunk_data[1] << 16) |
+        ((int)chunk_data[2] << 8)  |
+        ((int)chunk_data[3]);
 
+    if (reader->decompressor == NULL) reader->decompressor = libdeflate_alloc_decompressor();
+
+    enum libdeflate_result result;
+    size_t decompressed_size;
+
+try_again:
+    if (type == REGION_COMPRESSION_GZIP) {
+        result = libdeflate_gzip_decompress(
+            reader->decompressor, 
+            &chunk_data[5], 
+            chunk_size,
+            reader->chunk_data,
+            reader->capacity,
+            &decompressed_size
+        );
+    } else if (type == REGION_COMPRESSION_ZLIB) {
+        result = libdeflate_zlib_decompress(
+            reader->decompressor, 
+            &chunk_data[5], 
+            chunk_size,
+            reader->chunk_data,
+            reader->capacity,
+            &decompressed_size
+        );
+    } else {
+        return 0;
+    }
+
+    if (result == LIBDEFLATE_SUCCESS || result == LIBDEFLATE_SHORT_OUTPUT)
+        return decompressed_size;
+
+    if (result == LIBDEFLATE_INSUFFICIENT_SPACE){
+        size_t new_capacity = reader->capacity * 2;
+        char *new_buffer = realloc(reader->chunk_data, new_capacity);
+
+        if (new_buffer == NULL) return 0;
+
+        reader->chunk_data = new_buffer;
+        reader->capacity = new_capacity;
+        goto try_again;
+    }
+
+    return 0;
 }
-
-*/
