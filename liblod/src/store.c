@@ -1,3 +1,4 @@
+/*
 #include <stdlib.h>
 #include <stdio.h>
 
@@ -5,7 +6,6 @@
 
 #include <lod.h>
 
-/*
 struct LOD_Sqlite3Store {
     struct LOD_Store iface;
     sqlite3 *db;

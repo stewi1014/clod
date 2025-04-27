@@ -35,6 +35,6 @@ foreach test_case : test_cases
             'test/' + test_case + '.c',
             dependencies: libmc_dep,
         ),
-        workdir: join_paths(meson.current_source_dir(), 'test/data'),
+        workdir: join_paths(meson.current_source_dir(), 'test'),
     )
 endforeach

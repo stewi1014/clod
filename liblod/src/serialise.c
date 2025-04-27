@@ -1,3 +1,4 @@
+/*
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -63,3 +64,4 @@ void LOD_freeDeserialiseCtx(struct LOD_DeserialiseCtx *ctx){
     if (ctx->lz4_stream != NULL) LZ4_freeStreamDecode(ctx->lz4_stream);
     free(ctx);
 }
+*/

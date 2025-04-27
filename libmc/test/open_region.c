@@ -3,6 +3,7 @@
 #include <errno.h>
 #include <string.h>
 #include <assert.h>
+#include <time.h>
 
 #include <region.h>
 #include <nbt.h>
@@ -40,9 +41,30 @@ int main(int argc, char **argv) {
         timespec_get(&nbt_visit_start, TIME_UTC);
         //char *nbt_end = nbt_step(chunk_data);
 
-        char *status = nbt_payload(chunk_data, NBT_COMPOUND);
-        while(strncmp(nbt_name(status), "Status", nbt_name_size(status)))
-            status = nbt_step(status);
+        char *sections = nbt_payload(chunk_data, NBT_COMPOUND);
+        while(strncmp(nbt_name(sections), "sections", nbt_name_size(sections)))
+            sections = nbt_step(sections);
+
+        char *section;
+        for (int i = 0; (section = nbt_list_iter(sections, section, i, NBT_COMPOUND)); i++) {
+
+            char *block_state_data = section;
+            while (strncmp(nbt_name(block_state_data), "block_states", nbt_name_size(block_state_data)))
+                block_state_data = nbt_step(block_state_data);
+            block_state_data = nbt_payload(block_state_data, NBT_COMPOUND);
+            while (strncmp(nbt_name(block_state_data), "data", nbt_name_size(block_state_data)))
+                block_state_data = nbt_step(block_state_data);
+
+            char *block_light = section;
+            while (strncmp(nbt_name(block_light), "BlockLight", nbt_name_size(block_light)))
+                block_light = nbt_step(block_light);
+
+            char *sky_light = section;
+            while (strncmp(nbt_name(sky_light), "SkyLight", nbt_name_size(sky_light)))
+                sky_light = nbt_step(sky_light);
+
+            printf("adsf\n");
+        }
     
         timespec_get(&nbt_visit_end, TIME_UTC);
 

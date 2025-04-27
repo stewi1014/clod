@@ -53,14 +53,15 @@ void region_reader_free(struct region_reader *reader) {
 #define REGION_COMPRESSION_CUSTOM 127
 
 char *region_read_chunk(struct region_reader *reader, char *region, int chunk_x, int chunk_z) {
+    if (reader == NULL) return NULL;
     if (region == NULL) return NULL;
 
     int chunk_index = ((chunk_x & 31) + (chunk_z & 31) * 32);
     int offset = 
-        ((int)region[0 + 4 * chunk_index] << 16) |
-        ((int)region[1 + 4 * chunk_index] << 8) |
-        ((int)region[2 + 4 * chunk_index]);
-    char sectors =
+        ((int)(unsigned char)region[0 + 4 * chunk_index] << 16) +
+        ((int)(unsigned char)region[1 + 4 * chunk_index] << 8) +
+        ((int)(unsigned char)region[2 + 4 * chunk_index]);
+    unsigned char sectors =
         region[3 + 4 * chunk_index];
 
     if (offset < 2 || sectors == 0) return NULL;
@@ -70,16 +71,8 @@ char *region_read_chunk(struct region_reader *reader, char *region, int chunk_x,
     switch (chunk_data[4]) {
     case REGION_COMPRESSION_GZIP: 
     case REGION_COMPRESSION_ZLIB: {
-        bool free_reader = false;
-        if (reader == NULL) {
-            reader = region_reader_alloc();
-            if (reader == NULL) return NULL;
-            free_reader = true;
-        }
-
         size_t decompressed_size = decompress_deflate(reader, chunk_data, chunk_data[4]);
         if (decompressed_size == 0) {
-            if (free_reader) region_reader_free(reader);
             return NULL;
         }
         return reader->chunk_data;

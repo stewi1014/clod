@@ -10,6 +10,7 @@
  * World Reading
  */
 
+/** region_reader holds allocated memory that can be reused between chunk reads. */
 struct region_reader;
 struct region_reader *region_reader_alloc();
 void region_reader_free(struct region_reader *);
@@ -19,10 +20,11 @@ void region_reader_free(struct region_reader *);
  * decompresses it,
  * and returns a pointer to the start of the NBT data.
  * 
- * if region is NULL it returns NULL.
- * if reader is NULL it creates a temporary one that is freed before returning.
+ * the returned buffer is owned by the region_reader,
+ * and is only valid until the next call.
  * 
- * region_chunk_reader holds allocated memory that can be reused between chunk reads.
+ * if reader is NULL it returns NULL.
+ * if region is NULL it returns NULL.
  */
 char *region_read_chunk(
     struct region_reader *reader, 

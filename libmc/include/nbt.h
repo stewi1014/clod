@@ -293,7 +293,12 @@ char *nbt_payload_step(char type, char *payload);
  * 
  *  char *elem;
  *  for (int i = 0; elem = nbt_list_iter(list_payload, elem, i, NBT_STRING); i++) {
- *      printf("index %d, string value \"%.*s\"\n", nbt_string_size(elem), nbt_string(elem));
+ *      printf(
+ *          "index %d, 
+ *          string value \"%.*s\"\n", 
+ *          nbt_string_size(elem), 
+ *          nbt_string(elem)
+ *      );
  *  }
  * 
  * it is the value of the next list element.
