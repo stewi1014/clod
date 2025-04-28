@@ -1,14 +1,11 @@
 /**
- * region.h
+ * anvil.h
  * 
- * Provides a method for reading decompressed chunk data from region files.
+ * methods for dealing with the anvil world format.
  */
 
 #pragma once
-
-/**
- * World Reading
- */
+#include <stddef.h>
 
 /** region_reader holds allocated memory that can be reused between chunk reads. */
 struct region_reader;
@@ -28,7 +25,8 @@ void region_reader_free(struct region_reader *);
  */
 char *region_read_chunk(
     struct region_reader *reader, 
-    char *region, 
+    char *region_file, 
     int chunk_x, 
-    int chunk_z
+    int chunk_z,
+    size_t *size
 );

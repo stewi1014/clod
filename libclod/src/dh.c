@@ -4,7 +4,7 @@
 
 #include <sqlite3.h>
 
-#include <dh.h>
+#include "dh.h"
 
 extern unsigned char __0010_sqlite_createInitialDataTables_sql[];
 extern unsigned int __0010_sqlite_createInitialDataTables_sql_len;
@@ -49,28 +49,26 @@ int run_migration(sqlite3 *db, char *name, const char *sql, int sql_size) {
     sqlite3_finalize(stmt);
     if (err == SQLITE_ROW) return 0;
 
-next_stmt:
-    err = sqlite3_prepare_v2(db, sql, sql_size, &stmt, &tail);
-    if (err != SQLITE_OK) {
-        fprintf(stderr, "preparing %s: (%d) %s\n", name, err, sqlite3_errmsg(db));
-        return -1;
-    }
-
-    if (stmt != NULL) {
-        err = sqlite3_step(stmt);
-        if (err != SQLITE_DONE && err != SQLITE_ROW) {
-            fprintf(stderr, "executing %s: (%d) %s\n", name, err, sqlite3_errmsg(db));
+    while (sql_size > 0) {
+        err = sqlite3_prepare_v2(db, sql, sql_size, &stmt, &tail);
+        if (err != SQLITE_OK) {
+            fprintf(stderr, "preparing %s: (%d) %s\n", name, err, sqlite3_errmsg(db));
             return -1;
         }
-        
-        sqlite3_finalize(stmt);
-    }
 
-    if (tail < sql + sql_size) {
+        if (stmt != NULL) {
+            err = sqlite3_step(stmt);
+            if (err != SQLITE_DONE && err != SQLITE_ROW) {
+                fprintf(stderr, "executing %s: (%d) %s\n", name, err, sqlite3_errmsg(db));
+                return -1;
+            }
+
+            sqlite3_finalize(stmt);
+        }
+
         sql_size -= (tail - sql);
         sql = tail;
-        goto next_stmt;
-    }
+    };
 
     err = sqlite3_prepare_v2(db, "insert into Schema (ScriptName) values(?)",-1, &stmt, NULL);
     if (err != SQLITE_OK) {
@@ -144,7 +142,7 @@ struct dh_db *dh_db_open(char *path) {
     }
 
     #define MIGRATION(name, sql, sql_len) \
-    if (run_migration(db->db, name, sql, sql_len)) \
+    if (run_migration(db->db, name, (const char*)sql, sql_len)) \
         { sqlite3_close(db->db); free(db); return NULL; }
 
     MIGRATION("sqlScripts/0010_sqlite_createInitialDataTables.sql", __0010_sqlite_createInitialDataTables_sql, __0010_sqlite_createInitialDataTables_sql_len);
@@ -235,7 +233,7 @@ int dh_db_store(struct dh_db *db, struct dh_lod *lod) {
     int error;
     error = sqlite3_step(db->store);
     if (error != SQLITE_DONE) {
-        fprintf(stderr, "sqlite3_step: (%d) %s\n", error, sqlite3_errmsg(db->db));
+        fprintf(stderr, "sqlite3_step FullData: (%d) %s\n", error, sqlite3_errmsg(db->db));
         return -1;
     }
 

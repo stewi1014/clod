@@ -1,12 +1,15 @@
-liblod_sources = [
+libclod_sources = [
+    'include/anvil.h',
     'include/dh.h',
     'include/lod.h',
+    'include/nbt.h',
+    'src/anvil.c',
     'src/dh.c',
+    'src/nbt.c',
     'src/serialise.c',
-    'src/store.c',
 ]
 
-liblod_dh_migrations = [
+libclod_dh_migrations = [
     '0010-sqlite-createInitialDataTables.sql',
     '0020-sqlite-createFullDataSourceV2Tables.sql',
     '0030-sqlite-changeTableJournaling.sql',
@@ -18,8 +21,8 @@ liblod_dh_migrations = [
     '0080-sqlite-addApplyToChildrenColumn.sql',
 ]
 
-foreach migration : liblod_dh_migrations
-    liblod_sources += custom_target(
+foreach migration : libclod_dh_migrations
+    libclod_sources += custom_target(
         migration,
         input: 'src/dh_migrations/' + migration,
         output: migration + '.c',
@@ -27,29 +30,40 @@ foreach migration : liblod_dh_migrations
     )
 endforeach
 
-liblod = library(
+libclod = library(
     'lod',
-    liblod_sources,
+    libclod_sources,
     version: '1.0.0',
     soversion: '1',
     include_directories: include_directories('include'),
     dependencies: [
+        dependency('libdeflate'),
+        dependency('liblz4'),
         dependency('libzstd'),
         dependency('liblzma'),
-        dependency('liblz4'),
         dependency('sqlite3'),
+        dependency('libpq'),
     ],
 )
 
-liblod_dep = declare_dependency(
-    link_with: liblod,
+libclod_dep = declare_dependency(
+    link_with: libclod,
     include_directories: include_directories('include'),
 )
 
-install_headers('include/lod.h', 'include/dh.h')
+install_headers(
+    'include/anvil.h',
+    'include/dh.h',
+    'include/lod.h',
+    'include/nbt.h',
+)
 
 # tests
-test_cases = ['write_dh_database']
+test_cases = [
+    'open_region',
+    'parse_nbt',
+    'write_dh_database',
+]
 
 foreach test_case : test_cases
     test(
@@ -57,7 +71,7 @@ foreach test_case : test_cases
         executable(
             test_case,
             'test/' + test_case + '.c',
-            dependencies: liblod_dep,
+            dependencies: libclod_dep,
         ),
         workdir: join_paths(meson.current_source_dir(), 'test'),
     )

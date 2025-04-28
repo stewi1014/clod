@@ -31,4 +31,6 @@ int main(int argc, char **argv) {
     dh_db_close(db);
 
     remove("DistantHorizons.sqlite");
+
+    return 0;
 }

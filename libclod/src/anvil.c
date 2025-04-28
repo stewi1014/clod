@@ -1,12 +1,13 @@
 #include <stdlib.h>
 #include <stdbool.h>
+#include <assert.h>
 
 #include <libdeflate.h>
 #include <lz4.h>
 
-#include "region.h"
+#include "anvil.h"
 
-size_t decompress_deflate(struct region_reader *reader, char *chunk_data, char type);
+enum libdeflate_result decompress_deflate(struct region_reader *reader, char *chunk_data, char type, size_t *size);
 
 struct region_reader {
     char *chunk_data;
@@ -52,27 +53,27 @@ void region_reader_free(struct region_reader *reader) {
 #define REGION_COMPRESSION_LZ4 4
 #define REGION_COMPRESSION_CUSTOM 127
 
-char *region_read_chunk(struct region_reader *reader, char *region, int chunk_x, int chunk_z) {
+char *region_read_chunk(struct region_reader *reader, char *region_file, int chunk_x, int chunk_z, size_t *size) {
     if (reader == NULL) return NULL;
-    if (region == NULL) return NULL;
+    if (region_file == NULL) return NULL;
 
     int chunk_index = ((chunk_x & 31) + (chunk_z & 31) * 32);
     int offset = 
-        ((int)(unsigned char)region[0 + 4 * chunk_index] << 16) +
-        ((int)(unsigned char)region[1 + 4 * chunk_index] << 8) +
-        ((int)(unsigned char)region[2 + 4 * chunk_index]);
+        ((int)(unsigned char)region_file[0 + 4 * chunk_index] << 16) +
+        ((int)(unsigned char)region_file[1 + 4 * chunk_index] << 8) +
+        ((int)(unsigned char)region_file[2 + 4 * chunk_index]);
     unsigned char sectors =
-        region[3 + 4 * chunk_index];
+        region_file[3 + 4 * chunk_index];
 
     if (offset < 2 || sectors == 0) return NULL;
 
-    char *chunk_data = region + 4096 * offset;
+    char *chunk_data = region_file + 4096 * offset;
 
     switch (chunk_data[4]) {
     case REGION_COMPRESSION_GZIP: 
     case REGION_COMPRESSION_ZLIB: {
-        size_t decompressed_size = decompress_deflate(reader, chunk_data, chunk_data[4]);
-        if (decompressed_size == 0) {
+        enum libdeflate_result result = decompress_deflate(reader, chunk_data, chunk_data[4], size);
+        if (result != LIBDEFLATE_SUCCESS && result != LIBDEFLATE_SHORT_OUTPUT) {
             return NULL;
         }
         return reader->chunk_data;
@@ -89,17 +90,16 @@ char *region_read_chunk(struct region_reader *reader, char *region, int chunk_x,
     return NULL;
 }
 
-size_t decompress_deflate(struct region_reader *reader, char *chunk_data, char type) {
+enum libdeflate_result decompress_deflate(struct region_reader *reader, char *chunk_data, char type, size_t *size) {
     int chunk_size =
-        ((int)chunk_data[0] << 24) |
-        ((int)chunk_data[1] << 16) |
-        ((int)chunk_data[2] << 8)  |
-        ((int)chunk_data[3]);
+        ((int)(unsigned char)chunk_data[0] << 24) |
+        ((int)(unsigned char)chunk_data[1] << 16) |
+        ((int)(unsigned char)chunk_data[2] << 8)  |
+        ((int)(unsigned char)chunk_data[3]);
 
     if (reader->decompressor == NULL) reader->decompressor = libdeflate_alloc_decompressor();
 
     enum libdeflate_result result;
-    size_t decompressed_size;
 
 try_again:
     if (type == REGION_COMPRESSION_GZIP) {
@@ -109,7 +109,7 @@ try_again:
             chunk_size,
             reader->chunk_data,
             reader->capacity,
-            &decompressed_size
+            size
         );
     } else if (type == REGION_COMPRESSION_ZLIB) {
         result = libdeflate_zlib_decompress(
@@ -118,25 +118,22 @@ try_again:
             chunk_size,
             reader->chunk_data,
             reader->capacity,
-            &decompressed_size
+            size
         );
     } else {
-        return 0;
+        assert(false);
     }
-
-    if (result == LIBDEFLATE_SUCCESS || result == LIBDEFLATE_SHORT_OUTPUT)
-        return decompressed_size;
 
     if (result == LIBDEFLATE_INSUFFICIENT_SPACE){
         size_t new_capacity = reader->capacity * 2;
         char *new_buffer = realloc(reader->chunk_data, new_capacity);
 
-        if (new_buffer == NULL) return 0;
-
-        reader->chunk_data = new_buffer;
-        reader->capacity = new_capacity;
-        goto try_again;
+        if (new_buffer != NULL) {
+            reader->chunk_data = new_buffer;
+            reader->capacity = new_capacity;
+            goto try_again;
+        }
     }
 
-    return 0;
+    return result;
 }

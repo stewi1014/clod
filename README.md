@@ -11,8 +11,7 @@ _A lump or mass especially of earth or clay_
 ### Structure
 
 - [cli](./cli) command line interface.
-- [liblod](./liblod) library for dealing with LOD data.
-- [libmc](./libmc) library for dealing with minecraft data.
+- [libclod](./libclod) C library - the main point of this project.
 
 ### Development
 
@@ -25,7 +24,7 @@ You, me, the terminal and the text editor. Kinda sounds like a Eurodyne lyric, I
 
 ### Building
 
-Use gradle and/or meson as normal. Those unfamilliar with C should note that you're responsible for providing dependencies - typically at the OS level.
+Use gradle and/or meson as normal. Those unfamiliar with C should note that you're responsible for providing dependencies - typically at the OS level.
 
 To control the modloader and minecraft version, reference the `<modloader>-<minecraft_version>` gradle subproject.
 Some examples; `gradle fabric-1.19.1:runClient`, `gradle fabric-1.20.1:build`, `gradle forge-1.19.4:runClient`, `gradle paper-1.21.5:build` and `gradle neoforge-1.21.0:runServer` all operate as you would expect.

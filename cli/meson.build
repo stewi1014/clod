@@ -1,12 +1,12 @@
 clod_sources = [
+    'src/file_posix.c',
+    'src/file_windows.c',
+    'src/file.h',
     'src/main.c',
 ]
 
 executable(
     'clod',
     clod_sources,
-    dependencies: [
-        liblod_dep,
-        libmc_dep,
-    ],
+    dependencies: [libclod_dep],
 )

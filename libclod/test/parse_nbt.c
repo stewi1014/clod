@@ -14,14 +14,14 @@ int main(int argc, char **argv) {
     }
 
     char *chunk_data = malloc(60628);
-    fread(chunk_data, 60628, 1, f);
+    assert(fread(chunk_data, 60628, 1, f) == 1);
     fclose(f);
 
-    assert(nbt_step(chunk_data) == chunk_data+60628);
+    assert(nbt_step(chunk_data, chunk_data+60628) == chunk_data+60628);
 
     char *status = nbt_payload(chunk_data, NBT_COMPOUND);
     while(strncmp(nbt_name(status), "Status", nbt_name_size(status)))
-        status = nbt_step(status);
+        status = nbt_step(status, chunk_data+60628);
 
     printf(
             "Status: %.*s\n", 
@@ -29,9 +29,11 @@ int main(int argc, char **argv) {
             nbt_string(nbt_payload(status, NBT_STRING))
     );
 
-    for (char *tag = nbt_payload(chunk_data, NBT_COMPOUND); nbt_type(tag) != NBT_END; tag = nbt_step(tag)) {
-        printf("%.*s\n", nbt_name_size(tag), nbt_name(tag));
-    }
+    char *tag = NULL;
+    nbt_compound_foreach(nbt_payload(chunk_data, NBT_COMPOUND), chunk_data+60628, tag, {
+        printf("%.*s(%s)\n", nbt_name_size(tag), nbt_name(tag), nbt_type_as_string(nbt_type(tag)));
+    });
+    assert(tag == chunk_data+60628);
 
     return 0;
 }
