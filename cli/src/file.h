@@ -7,9 +7,9 @@ char *split_name(char *path);
 char **list_dir(char *path);
 
 struct 📄 {
-    char *data;
+    char *📦;
     int 📏;
-    time_t last_modified;
+    time_t 📅;
 };
 
 struct 📄 📄_open(char *📍);

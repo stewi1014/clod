@@ -5,7 +5,7 @@ man, pages are missing.
 ## Structure
 
 - `#include <nbt.h>` for parsing NBT data.
-- `#include <world.h>` for world reading methods.
+- `#include <anvil.h>` for world reading methods.
 - `#include <dh.h>` tor methods for dealing with DistantHorizons LODs and DBs.
 
 ## Non-Goals
@@ -15,10 +15,11 @@ that slows both you and the program down. The non-goals of this project are note
 
 - **multithreading**: if the library is so slow it requires multithreading then it has become too complex.
 - **caches**: websites need cache because users are a source of random behaviour - if code is generating random behaviour it needs fixing.
-- **IO abstraction**: wrapping IO methods implies a better understanding of the IO device than the user - which is arrogant and rarely correct.
+- **IO**: hardcoding IO implementations implies a better understanding of the IO device than the user - which is arrogant and rarely correct.
 - **pools**: correct resource management should be implemented instead of connection pools, buffer pools or any other kind of pool.
 - **platform independence**: if your char is 9-bits long, pointers are tuples and numbers are middle-endian - I'm sorry, but no.
 - **fixing data**: garbage in -> garbage out. data parsing should never segfault on bad data however. garbage in ->X segfault out.
+- **bad abstractions**: e.g. 'get_chunk(x,y)' is a bad abstraction because it implies speed and simplicity - the opposite of the implementation which is complex and IO-heavy.
 
 ## Headers
 
@@ -40,9 +41,9 @@ note that even if you know how the NBT format works, this library will still be 
 ##### Finding a specific tag with comprehensive error checking
 
 ```C
-size_t decompressed_size;
-char *chunk_data = region_read_chunk(reader, region_file, x, z, &decompressed_size);
-char *end = chunk_data + decompressed_size;
+
+char *chunk_data = ...
+char *end = chunk_data + chunk_length;
 
 char *status = nbt_named(chunk_data, end, "Status")
 if (status == NULL) {
@@ -68,9 +69,8 @@ if (status == NULL) {
 
 ```C
 
-size_t decompressed_size;
-char *chunk_data = region_read_chunk(reader, region_file, x, z, &decompressed_size);
-char *end = chunk_data + decompressed_size;
+char *chunk_data = ...
+char *end = chunk_data + chunk_length;
 
 char *tag;
 nbt_compound_foreach(nbt_payload(chunk_data, NBT_COMPOUND), end, tag, {
@@ -83,9 +83,8 @@ nbt_compound_foreach(nbt_payload(chunk_data, NBT_COMPOUND), end, tag, {
 
 ```C
 
-size_t decompressed_size;
-char *chunk_data = region_read_chunk(reader, region_file, x, z, &decompressed_size);
-char *end = chunk_data + decompressed_size;
+char *chunk_data = ...
+char *end = chunk_data + chunk_length;
 
 char *section, *child;
 nbt_list_foreach(nbt_payload(nbt_named(chunk_data, end, "sections"), NBT_LIST), end, section, 
@@ -96,7 +95,55 @@ nbt_list_foreach(nbt_payload(nbt_named(chunk_data, end, "sections"), NBT_LIST), 
 
 ```
 
-### [world.h](./include/world.h)
+### [anvil.h](./include/anvil.h)
+
+Methods for reading the anvil world format.
+
+#### Examples
+
+```C
+
+#include <stdio.h>
+#include <errno.h>
+#include <string.h>
+#include <anvil.h>
+
+int main(int argc, char **argv) {
+    struct anvil_world *world = anvil_open("world");
+    struct anvil_chunk_ctx *chunk_ctx = anvil_chunk_ctx_alloc(NULL);
+    
+    struct anvil_region_iter *iter = anvil_region_iter_new("region", world); // e.g. region, DIM1, DIM-1.
+    struct anvil_region region;
+    int error;
+    while (!(error = anvil_region_iter_next(&region, iter))) {
+        struct anvil_chunk chunk;
+        for (int x = 0; x < 32; x++) for (int z = 0; z < 32; z++) {
+            chunk = anvil_chunk_decompress(chunk_ctx, &region, x, z);
+            if (chunk.data_size == 0) continue; // files often have empty chunks.
+    
+            printf(
+                "region (%d, %d), chunk (%d, %d)\n", 
+                region.region_x,
+                region.region_z,
+                chunk.chunk_x,
+                chunk.chunk_z
+            );
+
+            // use chunk NBT data
+        }
+    }
+    
+    if (error < 0) {
+        printf("%s\n", strerror(errno));
+        return -1;
+    }
+    
+    anvil_chunk_ctx_free(chunk_ctx);
+    anvil_region_iter_free(iter);
+    anvil_close(world);
+}
+
+```
 
 ### [dh.h](./include/dh.h)
 

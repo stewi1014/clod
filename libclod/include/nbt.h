@@ -394,13 +394,17 @@ char *nbt_nnamed(char *compound_tag, char *end, char *name, size_t name_size) __
  * "returns" the byte after the payload, or NULL if payload is NULL or malformed.
  * 
  * Example:
- *  char *sections = nbt_named(chunk_data, end, "sections");
- *  char *section, *tag;
- *  nbt_list_foreach(nbt_payload(sections, NBT_LIST), end, section, 
- *      nbt_compound_foreach(nbt_payload(section, NBT_COMPOUND), end, tag, {
- *          printf("%.*s(%s)\n", nbt_name_size(tag), nbt_name(tag), nbt_type_as_string(nbt_type(tag)));
- *      })
- *  );
+```C
+
+char *sections = nbt_named(chunk_data, end, "sections");
+char *section, *tag;
+nbt_list_foreach(nbt_payload(sections, NBT_LIST), end, section, 
+    nbt_compound_foreach(nbt_payload(section, NBT_COMPOUND), end, tag, {
+        printf("%.*s(%s)\n", nbt_name_size(tag), nbt_name(tag), nbt_type_as_string(nbt_type(tag)));
+    })
+);
+
+```
  * 
  */
 #define nbt_list_foreach(payload, end, elem, code) (\
@@ -424,14 +428,17 @@ char *nbt_nnamed(char *compound_tag, char *end, char *name, size_t name_size) __
  * "returns" the byte after the payload, or NULL if payload is NULL or malformed.
  * 
  * Example:
- *  char *sections = nbt_named(chunk_data, end, "sections");
- *  char *section, *tag;
- *  nbt_list_foreach(nbt_payload(sections, NBT_LIST), end, section, 
- *      nbt_compound_foreach(nbt_payload(section, NBT_COMPOUND), end, tag, {
- *          printf("%.*s(%s)\n", nbt_name_size(tag), nbt_name(tag), nbt_type_as_string(nbt_type(tag)));
- *      })
- *  );
- * 
+```C
+
+char *sections = nbt_named(chunk_data, end, "sections");
+char *section, *tag;
+nbt_list_foreach(nbt_payload(sections, NBT_LIST), end, section, 
+    nbt_compound_foreach(nbt_payload(section, NBT_COMPOUND), end, tag, {
+        printf("%.*s(%s)\n", nbt_name_size(tag), nbt_name(tag), nbt_type_as_string(nbt_type(tag)));
+    })
+);
+
+```
  */
 #define nbt_compound_foreach(payload, end, elem, code) (\
     (payload) == NULL || !__nbt_has_data(payload, end, 1) ? NULL : ({\

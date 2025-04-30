@@ -187,7 +187,7 @@ char *nbt_nnamed(char *compound_tag, char *end, char *name, size_t name_size) {
             0 == strncmp(name, nbt_name(child), name_size)
         ) return child;
 
-        child = nbt_step(child, end);
+        child = nbt_payload_step(child + 3 + child_name_size, child[0], end);
     }
 
     return NULL;

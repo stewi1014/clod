@@ -31,7 +31,7 @@ foreach migration : libclod_dh_migrations
 endforeach
 
 libclod = library(
-    'lod',
+    'clod',
     libclod_sources,
     version: '1.0.0',
     soversion: '1',
@@ -60,7 +60,9 @@ install_headers(
 
 # tests
 test_cases = [
-    'open_region',
+    'open_world',
+    'open_world_benchmark',
+    'open_zlib_region',
     'parse_nbt',
     'write_dh_database',
 ]

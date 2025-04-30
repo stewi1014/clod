@@ -1,7 +1,3 @@
 # clod cli
 
-Command line interface for dealing with minecraft LODs.
-
-## Dependencies
-
-- libclod
+man, pages are missing.

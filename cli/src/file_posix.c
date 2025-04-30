@@ -18,7 +18,18 @@ char *split_name(char *path) {
 }
 
 char **list_dir(char *path) {
+    DIR *dir = opendir(path);
+    if (dir == NULL) return NULL;
+
+    struct dirent *entry;
+    while ((entry = readdir(dir)) != NULL) {
+        if (entry->d_name[0] == '.' && entry->d_name[1] == '\x0') continue;
+        if (entry->d_name[0] == '.' && entry->d_name[1] == '.' && entry->d_name[3] == '\x0') continue;
+        printf("%s\n", entry->d_name);
+    }
     
+    closedir(dir);
+    return NULL;
 }
 
 struct 📄 📄_open(char *📍) {
