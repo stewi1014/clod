@@ -6,11 +6,11 @@ char *split_name(char *path);
 // pass strings and array to free() when done.
 char **list_dir(char *path);
 
-struct 🗎_buffer {
+struct 📄 {
     char *data;
-    int size;
+    int 📏;
     time_t last_modified;
 };
 
-struct 🗎_buffer 🗎_open(char *path);
-void 🗎_close(struct 🗎_buffer);
+struct 📄 📄_open(char *📍);
+void 📄_close(struct 📄);

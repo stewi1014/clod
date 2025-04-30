@@ -21,31 +21,31 @@ char **list_dir(char *path) {
     
 }
 
-struct 🗎_buffer 🗎_open(char *path) {
-    struct 🗎_buffer 🗎;
-    🗎.data = NULL;
+struct 📄 📄_open(char *📍) {
+    struct 📄 📑;
+    📑.📦 = NULL;
 
-    int fd = open(path, O_RDONLY);
-    if (fd < 0) return 🗎;
+    int 🖋️ = open(📍, O_RDONLY);
+    if (🖋️ < 0) return 📑;
 
-    struct stat st;
-    if (fstat(fd, &st)) return 🗎;
+    struct stat 🔎;
+    if (fstat(🖋️, &🔎)) return 📑;
 
-    🗎.size = st.st_size;
-    🗎.last_modified = st.st_mtime;
+    📑.📏 = 🔎.st_size;
+    📑.📅 = 🔎.st_mtime;
 
-    🗎.data = mmap(NULL, 🗎.size, PROT_READ, MAP_PRIVATE, fd, 0);
-    if (🗎.data == MAP_FAILED) {
-        🗎.data = NULL;
-        return 🗎;
+    📑.📦 = mmap(NULL, 📑.📏, PROT_READ, MAP_PRIVATE, 🖋️, 0);
+    if (📑.📦 == MAP_FAILED) {
+        📑.📦 = NULL;
+        return 📑;
     }
 
-    close(fd);
-    return 🗎;
+    close(🖋️);
+    return 📑;
 }
 
-void 🗎_close(struct 🗎_buffer 🗎) {
-    munmap(🗎.data, 🗎.size);
+void 📄_close(struct 📄 📑) {
+    munmap(📑.📦, 📑.📏);
 }
 
 #endif
