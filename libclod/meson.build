@@ -1,10 +1,16 @@
-libclod_sources = [
+libclod_headers = [
     'include/anvil.h',
     'include/dh.h',
     'include/lod.h',
     'include/nbt.h',
+]
+
+libclod_sources = libclod_headers + [
     'src/anvil.c',
-    'src/dh.c',
+    'src/dh_db.c',
+    'src/dh_lod.c',
+    'src/file.h',
+    'src/file.c',
     'src/nbt.c',
     'src/serialise.c',
 ]
@@ -30,6 +36,8 @@ foreach migration : libclod_dh_migrations
     )
 endforeach
 
+add_global_arguments('-DUSE_MMAP', language: 'c')
+
 libclod = library(
     'clod',
     libclod_sources,
@@ -51,12 +59,7 @@ libclod_dep = declare_dependency(
     include_directories: include_directories('include'),
 )
 
-install_headers(
-    'include/anvil.h',
-    'include/dh.h',
-    'include/lod.h',
-    'include/nbt.h',
-)
+install_headers(libclod_headers)
 
 # tests
 test_cases = [

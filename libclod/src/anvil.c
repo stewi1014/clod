@@ -5,15 +5,20 @@
 #include <stdio.h>
 #include <dirent.h>
 
+#if defined(__unix__) || defined(__APPLE__)
+#define UNISTD_SESSION_LOCK
+#include <unistd.h>
+#endif
+
 #include <libdeflate.h>
 #include <lz4.h>
 
 #include "file.h"
 #include "anvil.h"
 
+#define MAX_PATH_LEN 4096 // I hate this
 #define BUFFER_START 100 * 1024
 #define BUFFER_MAX 4 * 1024 * 1024
-
 
 
 //=======//
@@ -22,6 +27,7 @@
 
 struct anvil_world {
     char *path;
+    FILE *session_lock_file;
     char **(*open_file)(char *path, size_t *size);
     void (*close_file)(char **file);
     void *(*malloc)(size_t);
@@ -54,16 +60,51 @@ struct anvil_world *anvil_open_ex(
 
     size_t path_size = strlen(path);
     if (path_size >= strlen("level.dat") && !strcmp(path + path_size - strlen("level.dat"), "level.dat")) {
-        path_size-=strlen("level.dat");
+        path_size -= strlen("level.dat");
     }
-    world->path = malloc_f(path_size + 255);
-    if (world->path == NULL) {
+    char *world_path = malloc_f(MAX_PATH_LEN);
+    if (world_path == NULL) {
+        free_f(world);
+        return NULL;
+    }
+    memcpy(world_path, path, path_size);
+    world_path[path_size] = '\x0';
+
+    world_path[path_size] = PATH_SEPERATOR;
+    strcpy(world_path + path_size + 1, "session.lock");
+    FILE *session_lock = fopen(world_path, "w");
+    world_path[path_size] = '\x0';
+    if (session_lock == NULL) {
+        free_f(world_path);
         free_f(world);
         return NULL;
     }
 
-    memcpy(world->path, path, path_size);
-    world->path[path_size] = '\x0';
+    if (fputs("☃", session_lock) < 0) {
+        fclose(session_lock);
+        free_f(world_path);
+        free_f(world);
+        return NULL;
+    }
+    if (fflush(session_lock)) {
+        fclose(session_lock);
+        free_f(world_path);
+        free_f(world);
+        return NULL;
+    }
+
+    #ifdef UNISTD_SESSION_LOCK
+        if (lockf(fileno(session_lock), F_LOCK, -ftell(session_lock))) {
+            // hmmmm
+            // I have half a mind to ignore this - but I won't.
+            fclose(session_lock);
+            free_f(world_path);
+            free_f(world);
+            return NULL;
+        }
+    #endif
+
+    world->path = world_path;
     world->open_file = open_file_f;
     world->close_file = close_file_f;
     world->malloc = malloc_f;
@@ -110,12 +151,14 @@ struct anvil_region_iter {
 };
 
 struct anvil_region_iter *anvil_region_iter_new(char *subdir, struct anvil_world *world) {
+    if (world == NULL) return NULL;
+
     struct anvil_region_iter *iter = world->malloc(sizeof(struct anvil_region_iter));
     if (iter == NULL) {
         return NULL;
     }
 
-    char *path = world->malloc(strlen(world->path) + 255);
+    char *path = world->malloc(MAX_PATH_LEN);
     strcpy(path, world->path);
 
     if (subdir != NULL) {
@@ -144,6 +187,7 @@ int anvil_region_iter_next(
     struct anvil_region *region,
     struct anvil_region_iter *iter
 ) {
+    assert(region != NULL);
     if (iter == NULL) {
         return -1;
     }

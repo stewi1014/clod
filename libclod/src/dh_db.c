@@ -146,15 +146,60 @@ struct dh_db *dh_db_open(char *path) {
     if (run_migration(db->db, name, (const char*)sql, sql_len)) \
         { sqlite3_close(db->db); free(db); return NULL; }
 
-    MIGRATION("sqlScripts/0010_sqlite_createInitialDataTables.sql", __0010_sqlite_createInitialDataTables_sql, __0010_sqlite_createInitialDataTables_sql_len);
-    MIGRATION("sqlScripts/0020_sqlite_createFullDataSourceV2Tables.sql", __0020_sqlite_createFullDataSourceV2Tables_sql, __0020_sqlite_createFullDataSourceV2Tables_sql_len);
-    MIGRATION("sqlScripts/0030_sqlite_changeTableJournaling.sql", __0030_sqlite_changeTableJournaling_sql, __0030_sqlite_changeTableJournaling_sql_len);
-    MIGRATION("sqlScripts/0031_sqlite_useSqliteWalJournaling.sql", __0031_sqlite_useSqliteWalJournaling_sql, __0031_sqlite_useSqliteWalJournaling_sql_len);
-    MIGRATION("sqlScripts/0040_sqlite_removeRenderCache.sql", __0040_sqlite_removeRenderCache_sql, __0040_sqlite_removeRenderCache_sql_len);
-    MIGRATION("sqlScripts/0050_sqlite_addApplyToParentIndex.sql", __0050_sqlite_addApplyToParentIndex_sql, __0050_sqlite_addApplyToParentIndex_sql_len);
-    MIGRATION("sqlScripts/0060_sqlite_createChunkHashTable.sql", __0060_sqlite_createChunkHashTable_sql, __0060_sqlite_createChunkHashTable_sql_len);
-    MIGRATION("sqlScripts/0070_sqlite_createBeaconBeamTable.sql", __0070_sqlite_createBeaconBeamTable_sql, __0070_sqlite_createBeaconBeamTable_sql_len);
-    MIGRATION("sqlScripts/0080_sqlite_addApplyToChildrenColumn.sql", __0080_sqlite_addApplyToChildrenColumn_sql, __0080_sqlite_addApplyToChildrenColumn_sql_len);
+    MIGRATION(
+        "sqlScripts/0010_sqlite_createInitialDataTables.sql",
+        __0010_sqlite_createInitialDataTables_sql,
+        __0010_sqlite_createInitialDataTables_sql_len
+    );
+
+    MIGRATION(
+        "sqlScripts/0020_sqlite_createFullDataSourceV2Tables.sql",
+        __0020_sqlite_createFullDataSourceV2Tables_sql,
+        __0020_sqlite_createFullDataSourceV2Tables_sql_len
+    );
+
+    MIGRATION(
+        "sqlScripts/0030_sqlite_changeTableJournaling.sql",
+        __0030_sqlite_changeTableJournaling_sql,
+        __0030_sqlite_changeTableJournaling_sql_len
+    );
+
+    MIGRATION(
+        "sqlScripts/0031_sqlite_useSqliteWalJournaling.sql",
+        __0031_sqlite_useSqliteWalJournaling_sql,
+        __0031_sqlite_useSqliteWalJournaling_sql_len
+    );
+
+    MIGRATION(
+        "sqlScripts/0040_sqlite_removeRenderCache.sql",
+        __0040_sqlite_removeRenderCache_sql,
+        __0040_sqlite_removeRenderCache_sql_len
+    );
+
+    MIGRATION(
+        "sqlScripts/0050_sqlite_addApplyToParentIndex.sql",
+        __0050_sqlite_addApplyToParentIndex_sql,
+        __0050_sqlite_addApplyToParentIndex_sql_len
+    );
+
+    MIGRATION(
+        "sqlScripts/0060_sqlite_createChunkHashTable.sql",
+        __0060_sqlite_createChunkHashTable_sql,
+        __0060_sqlite_createChunkHashTable_sql_len
+    );
+
+    MIGRATION(
+        "sqlScripts/0070_sqlite_createBeaconBeamTable.sql",
+        __0070_sqlite_createBeaconBeamTable_sql,
+        __0070_sqlite_createBeaconBeamTable_sql_len
+    );
+
+    MIGRATION(
+        "sqlScripts/0080_sqlite_addApplyToChildrenColumn.sql",
+        __0080_sqlite_addApplyToChildrenColumn_sql,
+        __0080_sqlite_addApplyToChildrenColumn_sql_len
+    );
+
 
     char *store_sql =
         "insert into FullData ("
@@ -209,7 +254,7 @@ void dh_db_close(struct dh_db *db) {
 
 }
 
-int dh_db_store(struct dh_db *db, struct dh_lod *lod) {
+int dh_db_store(struct dh_db *db, struct dh_db_lod *lod) {
     if (db == NULL || lod == NULL) return -1;
 
     #define CHECK_ERROR(stmt) ({ if ((stmt) != SQLITE_OK) \

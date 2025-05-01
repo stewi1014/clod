@@ -4,7 +4,7 @@
 
 #include "nbt.h"
 
-static char *nbt_memshift(char *ptr, char *end, size_t old_size, size_t new_size) {
+static inline char *nbt_memshift(char *ptr, char *end, size_t old_size, size_t new_size) {
     __nbt_assert(ptr != NULL);
     __nbt_assert(end != NULL);
     __nbt_assert(end >= ptr);
@@ -21,6 +21,8 @@ static char *nbt_memshift(char *ptr, char *end, size_t old_size, size_t new_size
     memmove(ptr + new_size, ptr + old_size, end - ptr - old_size);
     return end + new_size - old_size;
 }
+
+
 
 //=======================//
 // Primary Functionality //
@@ -119,6 +121,12 @@ char *nbt_payload_step(char *payload, char type, char *end) {
     }
 }
 
+
+
+//===============//
+// Serialisation //
+//===============//
+
 char *nbt_type_set(char *tag, char type, char *end) {
     __nbt_assert(tag != NULL);
     __nbt_assert(end != NULL);
@@ -150,15 +158,11 @@ char *nbt_name_setn(char *tag, char *end, char *name, uint16_t new_size){
     return end;
 }
 
+
+
 //=================//
 // Syntactic Sugar //
 //=================//
-
-char *nbt_named(char *compound_tag, char *end, char *name) {
-    __nbt_assert(name != NULL);
-    size_t name_size = strlen(name);
-    return nbt_nnamed(compound_tag, end, name, name_size);
-}
 
 char *nbt_nnamed(char *compound_tag, char *end, char *name, size_t name_size) {
     __nbt_assert(name != NULL);

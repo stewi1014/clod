@@ -14,9 +14,9 @@
 
 #pragma once
 #include <assert.h>
-#include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <string.h>
 
 #ifdef __GNUC__
 #define __nbt_nonnull(...) __attribute__((nonnull(__VA_ARGS__)))
@@ -34,6 +34,8 @@
 #endif
 
 #define __nbt_has_data(ptr, end, size) ((size) >= 0 && ((char*)(end) == NULL || (ptr) <= ((char*)(end)-(size))))
+
+
 
 //=======================//
 // Primary Functionality //
@@ -63,6 +65,12 @@ char *nbt_step(char *tag, char *end) __nbt_nonnull(1);
  * if steping over the tag would read past end, the method returns NULL.
  */
 char *nbt_payload_step(char *payload, char type, char *end) __nbt_nonnull(1);
+
+
+
+//===============//
+// Serialisation //
+//===============//
 
 #define NBT_END 0
 #define NBT_BYTE 1
@@ -353,22 +361,11 @@ char *nbt_long_array_payload(char *payload) {
     return payload + 4;
 }
 
+
+
 //=================//
 // Syntactic Sugar //
 //=================//
-
-/**
- * finds the child tag in the compound tag that has the given name.
- * 
- * compound_tag is a buffer containing compound nbt tag data.
- * end is the byte after the end of the buffer.
- * name is the name to search for. name must not be NULL, and must be null-terminated.
- * 
- * if tag is NULL it returns NULL.
- * if tag is malformed or not NBT_COMPOUND it returns NULL.
- * if no tag is found it returns an NBT_EMPTY tag.
- */
-char *nbt_named(char *compound_tag, char *end, char *name) __nbt_nonnull(3);
 
 /**
  * finds the child tag in the compound tag that has the given name.
@@ -383,6 +380,24 @@ char *nbt_named(char *compound_tag, char *end, char *name) __nbt_nonnull(3);
  * if no tag is found it returns an NBT_EMPTY tag.
  */
 char *nbt_nnamed(char *compound_tag, char *end, char *name, size_t name_size) __nbt_nonnull(3);
+
+/**
+ * finds the child tag in the compound tag that has the given name.
+ * same as nbt_nnamed, but takes a normal null-termianted string instead.
+ * 
+ * compound_tag is a buffer containing compound nbt tag data.
+ * end is the byte after the end of the buffer.
+ * name is the name to search for. name must not be NULL, and must be null-terminated.
+ * 
+ * if tag is NULL it returns NULL.
+ * if tag is malformed or not NBT_COMPOUND it returns NULL.
+ * if no tag is found it returns an NBT_EMPTY tag.
+ */
+static inline __nbt_nonnull(3)
+char *nbt_named(char *compound_tag, char *end, char *name) {
+    __nbt_assert(name != NULL);
+    return nbt_nnamed(compound_tag, end, name, strlen(name));
+}
 
 /**
  * iterates over elements of a list payload,
@@ -404,7 +419,7 @@ nbt_list_foreach(nbt_payload(sections, NBT_LIST), end, section,
     })
 );
 
-```
+````
  * 
  */
 #define nbt_list_foreach(payload, end, elem, code) (\

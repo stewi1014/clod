@@ -12,7 +12,7 @@ struct dh_db;
 struct dh_db *dh_db_open();
 void dh_db_close(struct dh_db *);
 
-struct dh_lod {
+struct dh_db_lod {
     char detail_level;
     int pos_x;
     int pos_z;
@@ -30,7 +30,7 @@ struct dh_lod {
     time_t created_time;
 };
 
-int dh_db_store(struct dh_db *db, struct dh_lod *lod);
+int dh_db_store(struct dh_db *db, struct dh_db_lod *lod);
 
 /**
  * 

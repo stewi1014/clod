@@ -1,12 +1,22 @@
 # libclod
 
-man, pages are missing.
+Library for dealing with minecraft data - including LODs.
+
+This library will probably never be used by anyone except myself,
+and the world is probably better off for it.
+Having said that, it isn't *terrible*, and offers some useful functionality.
+
+If you're using a higher level language and need some things done *really* fast,
+or you're writing C that needs to deal with minecarft data and don't feel like DIY-ing
+the multi-faceted technology stack that is the minecraft save file,
+I'd recomend at least using this library as a reference.
 
 ## Structure
 
-- `#include <nbt.h>` for parsing NBT data.
-- `#include <anvil.h>` for world reading methods.
-- `#include <dh.h>` tor methods for dealing with DistantHorizons LODs and DBs.
+- [`#include <anvil.h>`](./include/anvil.h) reads the anvil world format.
+- [`#include <dh.h>`](./include/dh.h) deals with DistantHorizons LODs and databases.
+- [`#include <lod.h>`](./include/lod.h) for LOD generating.
+- [`#include <nbt.h>`](./include/nbt.h) gives you NBT parsing helpers.
 
 ## Non-Goals
 
@@ -25,14 +35,17 @@ that slows both you and the program down. The non-goals of this project are note
 
 ### [nbt.h](./include/nbt.h)
 
-NBT parsing library that does not offer any intermediate representation of NBT data.
+Very *very* fast NBT parsing library: ~5µs/chunk to traverse all chunk data in a world.
+It does not offer any intermediate representation of NBT data.
 
 Methods operate directly on the serialised data, which makes it fast as all get-out for parsing and making changes to serialised data.
 However some use cases do not need changes to be serialised,
-and can benifit from storing changes in an intermediate data format - this library is not for those use cases.
+and can benefit from storing changes in an intermediate data format - this library is not for those use cases.
+For example, changing the name of a tag 100 times (with different lengths) means all data serialised after it needs to be moved 100 times,
+wheras staging those changes in a char* only requires setting a pointer 100 times.
 
 This approach also comes with an ergonomic downside;
-Nuances of the NBT format are not abstracted away by this library, and using it can be verbose.
+It's quite low-level - nuances of the NBT format are not abstracted away by this library, not really.
 So, if you're going to use it, make sure you're aware of how the NBT format works and
 note that even if you know how the NBT format works, this library will still be a pain to use.
 
@@ -106,12 +119,18 @@ Methods for reading the anvil world format.
 #include <stdio.h>
 #include <errno.h>
 #include <string.h>
+
 #include <anvil.h>
+#include <nbt.h>
 
 int main(int argc, char **argv) {
     struct anvil_world *world = anvil_open("world");
+    if (world == NULL) {
+        printf("open world: %s\n", strerror(errno));
+        return -1;
+    }
+
     struct anvil_chunk_ctx *chunk_ctx = anvil_chunk_ctx_alloc(NULL);
-    
     struct anvil_region_iter *iter = anvil_region_iter_new("region", world); // e.g. region, DIM1, DIM-1.
     struct anvil_region region;
     int error;
@@ -121,13 +140,26 @@ int main(int argc, char **argv) {
             chunk = anvil_chunk_decompress(chunk_ctx, &region, x, z);
             if (chunk.data_size == 0) continue; // files often have empty chunks.
     
-            printf(
-                "region (%d, %d), chunk (%d, %d)\n", 
-                region.region_x,
-                region.region_z,
-                chunk.chunk_x,
-                chunk.chunk_z
-            );
+            char *status = nbt_named(chunk.data, chunk.data + chunk.data_size, "Status");
+            if (status == NULL && nbt_type(status) != NBT_STRING) {
+                printf(
+                    "region (%d, %d); chunk (%d, %d) is corrupted\n", 
+                    region.region_x,
+                    region.region_z,
+                    chunk.chunk_x,
+                    chunk.chunk_z
+                );
+            } else {
+                printf(
+                    "region (%d, %d), chunk (%d, %d) has status %.*s\n", 
+                    region.region_x,
+                    region.region_z,
+                    chunk.chunk_x,
+                    chunk.chunk_z,
+                    nbt_string_size(nbt_payload(status, NBT_STRING)),
+                    nbt_string(nbt_payload(status, NBT_STRING))
+                );
+            }
 
             // use chunk NBT data
         }

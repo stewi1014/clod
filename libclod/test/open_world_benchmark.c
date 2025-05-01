@@ -9,6 +9,11 @@
 
 int main(int argc, char **argv) {
     struct anvil_world *world = anvil_open("world");
+    if (world == NULL) {
+        printf("open world: %s\n", strerror(errno));
+        return -1;
+    }
+
     struct anvil_chunk_ctx *chunk_ctx = anvil_chunk_ctx_alloc(NULL);
 
     struct timespec start, end;
