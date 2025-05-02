@@ -51,7 +51,7 @@ int main(int argc, char **argv) {
         timespec_get(&nbt_visit_start, TIME_UTC);
 
         char *tag = chunk.data;
-        nbt_compound_foreach(nbt_payload(chunk.data, NBT_COMPOUND), end, tag, {
+        nbt_compound_foreach(nbt_payload(chunk.data, NBT_COMPOUND, end), end, tag, {
             //printf("%.*s(%s)\n", nbt_name_size(tag), nbt_name(tag), nbt_type_as_string(nbt_type(tag)));
         });
         

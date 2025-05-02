@@ -20,28 +20,25 @@ int main(int argc, char **argv) {
         struct anvil_chunk chunk;
         for (int x = 0; x < 32; x++) for (int z = 0; z < 32; z++) {
             chunk = anvil_chunk_decompress(chunk_ctx, &region, x, z);
-            char *end = chunk.data + chunk.data_size;
             if (chunk.data_size == 0) continue; // files often have empty chunks.
-    
-            // use chunk NBT data...
-            char *status = nbt_named(nbt_payload(chunk.data, NBT_COMPOUND, end), "Status", end);
-            if (status == NULL && nbt_type(status, end) != NBT_STRING) {
+            
+            struct anvil_section_iter section;
+            if (anvil_section_iter_init(&section, chunk)) {
+                printf("ewwor\n");
+                __builtin_trap();
+            }
+
+            while (!anvil_section_iter_next(&section)) {
                 printf(
-                    "region (%d, %d); chunk (%d, %d) is corrupted\n", 
-                    region.region_x,
-                    region.region_z,
-                    chunk.chunk_x,
-                    chunk.chunk_z
-                );
-            } else {
-                printf(
-                    "region (%d, %d), chunk (%d, %d) has status %.*s\n", 
-                    region.region_x,
-                    region.region_z,
-                    chunk.chunk_x,
-                    chunk.chunk_z,
-                    nbt_string_size(nbt_payload(status, NBT_STRING, end)),
-                    nbt_string(nbt_payload(status, NBT_STRING, end))
+                    "region (%d, %d), section(%d, %d, %d), %p %p %p %p %p %p\n", 
+                    region.region_x, region.region_z,
+                    chunk.chunk_x, section.section_y, chunk.chunk_z,
+                    section.block_state_palette,
+                    section.block_state_array,
+                    section.biome_palette,
+                    section.biome_array,
+                    section.block_light,
+                    section.sky_light
                 );
             }
         }

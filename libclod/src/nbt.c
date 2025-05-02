@@ -37,7 +37,7 @@ char *nbt_step(char *tag, char *end) {
     if (type == NBT_END) return tag + 1;
 
     if (!__nbt_has_data(tag, end, 3)) return NULL;
-    uint16_t name_size = nbt_name_size(tag);
+    uint16_t name_size = nbt_name_size(tag, end);
 
     if (!__nbt_has_data(tag, end, 3 + (size_t)name_size)) return NULL;
     return nbt_payload_step(tag + 3 + (size_t)name_size, type, end);
@@ -149,7 +149,7 @@ char *nbt_name_setn(char *tag, char *end, char *name, uint16_t new_size){
     __nbt_assert(end >= tag);
     __nbt_assert(name != NULL);
 
-    uint16_t old_size = nbt_name_size(tag);
+    uint16_t old_size = nbt_name_size(tag, end);
     end = nbt_memshift(tag + 3, end, old_size, new_size);
     memcpy(tag + 3, name, new_size);
     
@@ -164,32 +164,18 @@ char *nbt_name_setn(char *tag, char *end, char *name, uint16_t new_size){
 // Syntactic Sugar //
 //=================//
 
-char *nbt_nnamed(char *compound_tag, char *end, char *name, size_t name_size) {
+char *nbt_nnamed(char *payload, char *name, size_t name_size, char *end) {
     __nbt_assert(name != NULL);
-    if (
-        compound_tag == NULL || 
-        !__nbt_has_data(compound_tag, end, 1) ||
-        compound_tag[0] != NBT_COMPOUND ||
-        !__nbt_has_data(compound_tag, end, 3)
-    ) return NULL;
-
-    uint16_t tag_name_size = nbt_name_size(compound_tag);
-
-    if (!__nbt_has_data(compound_tag, end, 3 + tag_name_size)) return NULL;
-    char *child = compound_tag + 3 + tag_name_size;
-
+    char *child = payload;
     while (child != NULL) {
-        if (!__nbt_has_data(child, end, 1)) return NULL;
+        if (!__nbt_has_data(payload, end, 1)) return NULL;
         if (child[0] == NBT_END) return child;
 
-        if (!__nbt_has_data(child, end, 3)) return NULL;
-        uint16_t child_name_size = nbt_name_size(child);
+        if (!__nbt_has_data(payload, end, 3)) return NULL;
+        uint16_t child_name_size = nbt_name_size(child, end);
 
-        if (!__nbt_has_data(child, end, 3 + child_name_size)) return NULL;
-        if (
-            name_size == child_name_size &&
-            0 == strncmp(name, nbt_name(child), name_size)
-        ) return child;
+        if (!__nbt_has_data(payload, end, 3 + child_name_size)) return NULL;
+        if (child_name_size == name_size && 0 == strncmp(name, child + 3, child_name_size)) return child;
 
         child = nbt_payload_step(child + 3 + child_name_size, child[0], end);
     }

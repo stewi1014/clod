@@ -129,6 +129,19 @@ char *nbt_payload_step(char *payload, char type, char *end) __nbt_nonnull(1);
     (type) == NBT_LONG_ARRAY\
 )
 
+#define nbt_type_is_integer(type) (\
+    (type) == NBT_BYTE ||\
+    (type) == NBT_SHORT ||\
+    (type) == NBT_INT ||\
+    (type) == NBT_LONG\
+)
+
+#define nbt_type_is_number(type) (\
+    nbt_type_is_integer(type) ||\
+    (type) == NBT_FLOAT ||\
+    (type) == NBT_DOUBLE\
+)
+
 /** string constant for the given type. */
 #define nbt_type_as_string(type) (\
     (type) == NBT_END ? "NBT_END" :\
@@ -149,8 +162,9 @@ char *nbt_payload_step(char *payload, char type, char *end) __nbt_nonnull(1);
 
 /** (3) the type of the tag. tag must not be NULL. */
 static inline __nbt_nonnull(1)
-char nbt_type(char *tag) {
+char nbt_type(char *tag, char *end) {
     __nbt_assert(tag != NULL);
+    __nbt_assert(__nbt_has_data(tag, end, 1));
     return tag[0];
 }
 
@@ -159,19 +173,22 @@ char *nbt_type_set(char *tag, char type, char *end) __nbt_nonnull(1, 3);
 
 /** (3) parses the size of the tag name. tag must not be NULL. returns 0 if tag is malformed. */
 static inline __nbt_nonnull(1)
-uint16_t nbt_name_size(char *tag) {
+uint16_t nbt_name_size(char *tag, char *end) {
     __nbt_assert(tag != NULL);
+    __nbt_assert(__nbt_has_data(tag, end, 3));
     if (!nbt_type_has_payload(tag[0])) return 0;
     return 
         ((uint16_t)(unsigned char)(tag)[1]<<8) +
         ((uint16_t)(unsigned char)(tag)[2]);
 }
 
-/** (3) returns the non-null-terminated name of the tag. tag must not be NULL. returns NULL if tag is malformed. */
+/** (3) returns the non-null-terminated name of the tag. tag must not be NULL. returns "" if tag is malformed. */
 static inline __nbt_nonnull(1)
-char *nbt_name(char *tag) {
+char *nbt_name(char *tag, char *end) {
     __nbt_assert(tag != NULL);
-    if (!nbt_type_has_payload(tag[0])) return NULL;
+    if (!__nbt_has_data(tag, end, 3)) return "";
+    if (!__nbt_has_data(tag, end, 3 + nbt_name_size(tag, end))) return "";
+    if (!nbt_type_has_payload(tag[0])) return "";
     return tag + 3;
 }
 
@@ -181,17 +198,36 @@ char *nbt_name_set(char *tag, char *end, char *name) __nbt_nonnull(1, 2, 3);
 /** sets the name of the tag. tag, end and name must not be null. name_size must be accurate. returns new end. */
 char *nbt_name_setn(char *tag, char *end, char *name, uint16_t name_size) __nbt_nonnull(1, 2, 3);
 
-/** (3 + name_size) returns the tag's payload. returns NULL if tag is NULL or not of the given type. */
+/** (3 + name_size) returns the tag's payload. returns NULL if tag is NULL, malformed or not of the given type. */
 static inline
-char *nbt_payload(char *tag, char type) {
+char *nbt_payload(char *tag, char type, char *end) {
     __nbt_assert(nbt_type_has_payload(type));
+    if (!__nbt_has_data(tag, end, 1)) return NULL;
     if (tag == NULL || tag[0] != type) return NULL;
 
+    if (!__nbt_has_data(tag, end, 3)) return NULL;
     uint16_t name_size =
         ((uint16_t)(unsigned char)tag[1]<<8) +
         ((uint16_t)(unsigned char)tag[2]);
 
-    return tag + 3 + name_size;
+    if (!__nbt_has_data(tag, end, 3 + name_size)) return NULL;
+    tag += 3 + name_size;
+
+    switch (type){
+    case NBT_BYTE: if (!__nbt_has_data(tag, end, 1)) return NULL; break;
+    case NBT_SHORT: if (!__nbt_has_data(tag, end, 2)) return NULL; break;
+    case NBT_INT: if (!__nbt_has_data(tag, end, 4)) return NULL; break;
+    case NBT_LONG: if (!__nbt_has_data(tag, end, 8)) return NULL; break;
+    case NBT_FLOAT: if (!__nbt_has_data(tag, end, 4)) return NULL; break;
+    case NBT_DOUBLE: if (!__nbt_has_data(tag, end, 8)) return NULL; break;
+    case NBT_BYTE_ARRAY: if (!__nbt_has_data(tag, end, 4)) return NULL; break;
+    case NBT_STRING: if (!__nbt_has_data(tag, end, 2)) return NULL; break;
+    case NBT_LIST: if (!__nbt_has_data(tag, end, 5)) return NULL; break;
+    case NBT_INT_ARRAY: if (!__nbt_has_data(tag, end, 4)) return NULL; break;
+    case NBT_LONG_ARRAY: if (!__nbt_has_data(tag, end, 4)) return NULL; break;
+    }
+
+    return tag;
 }
 
 /** (1) parses a byte payload. payload must not be NULL. */
@@ -361,6 +397,71 @@ char *nbt_long_array_payload(char *payload) {
     return payload + 4;
 }
 
+/** returns the value of an integer type tag. the type must be an integer. tag must not be NULL. */
+static inline __nbt_nonnull(1)
+int64_t nbt_autointeger(char *tag, char *end) {
+    __nbt_assert(tag != NULL);
+    __nbt_assert(__nbt_has_data(tag, end, 3));
+    __nbt_assert(nbt_type_is_integer(tag[0]));
+
+    uint16_t name_size =
+        ((uint16_t)(unsigned char)tag[1]<<8) +
+        ((uint16_t)(unsigned char)tag[2]);
+
+    switch (tag[0]){
+    case NBT_BYTE: return nbt_byte(tag + 3 + name_size);
+    case NBT_SHORT: return nbt_short(tag + 3 + name_size);
+    case NBT_INT: return nbt_int(tag + 3 + name_size);
+    case NBT_LONG: return nbt_long(tag + 3 + name_size);
+    default: __builtin_unreachable();
+    }
+}
+
+/** returns the value of a number type tag. the type must be an number. tag must not be NULL. */
+static inline __nbt_nonnull(1)
+double nbt_autonumber(char *tag) {
+    __nbt_assert(tag != NULL);
+    __nbt_assert(nbt_type_is_number(tag[0]));
+
+    uint16_t name_size =
+        ((uint16_t)(unsigned char)tag[1]<<8) +
+        ((uint16_t)(unsigned char)tag[2]);
+
+    switch (tag[0]){
+    case NBT_BYTE: return nbt_byte(tag + 3 + name_size);
+    case NBT_SHORT: return nbt_short(tag + 3 + name_size);
+    case NBT_INT: return nbt_int(tag + 3 + name_size);
+    case NBT_LONG: return nbt_long(tag + 3 + name_size);
+    case NBT_FLOAT: return nbt_float(tag + 3 + name_size);
+    case NBT_DOUBLE: return nbt_double(tag + 3 + name_size);
+    default: __builtin_unreachable();
+    }
+}
+
+/** 
+ * ((i / floor(64 / bits)) * 8 + 8)
+ * returns the packed integer at the given index in the packed array. 
+ * data must not be NULL
+ */
+static inline
+uint64_t nbt_packed_array_elem(char *payload, int i, int bits) {
+    __nbt_assert(payload != NULL);
+    int c = 64 / bits;
+
+    payload += (i / c) * 8;
+    uint64_t n =
+        ((uint64_t)(unsigned char)payload[0] << 56) +
+        ((uint64_t)(unsigned char)payload[1] << 48) +
+        ((uint64_t)(unsigned char)payload[2] << 40) +
+        ((uint64_t)(unsigned char)payload[3] << 32) +
+        ((uint64_t)(unsigned char)payload[4] << 24) +
+        ((uint64_t)(unsigned char)payload[5] << 16) +
+        ((uint64_t)(unsigned char)payload[6] << 8) +
+        ((uint64_t)(unsigned char)payload[7]);
+
+    return (uint64_t)(n >> ((i % c) * bits)) & ((~0ULL) >> (64 - bits));
+}
+
 
 
 //=================//
@@ -368,35 +469,33 @@ char *nbt_long_array_payload(char *payload) {
 //=================//
 
 /**
- * finds the child tag in the compound tag that has the given name.
+ * finds the child tag in the compound payload that has the given name.
  * 
- * compound_tag is a buffer containing compound nbt tag data.
+ * payload is a buffer containing a compound payload.
  * end is the byte after the end of the buffer.
  * name is the name to search for. name must not be NULL.
  * name_size is the size of name.
  * 
- * if tag is NULL it returns NULL.
- * if tag is malformed or not NBT_COMPOUND it returns NULL.
+ * if payload is NULL or payformed it returns NULL.
  * if no tag is found it returns an NBT_EMPTY tag.
  */
-char *nbt_nnamed(char *compound_tag, char *end, char *name, size_t name_size) __nbt_nonnull(3);
+char *nbt_nnamed(char *payload, char *name, size_t name_size, char *end) __nbt_nonnull(2);
 
 /**
- * finds the child tag in the compound tag that has the given name.
+ * finds the child tag in the compound payload that has the given name.
  * same as nbt_nnamed, but takes a normal null-termianted string instead.
  * 
- * compound_tag is a buffer containing compound nbt tag data.
+ * payload is a buffer containing a compound payload.
  * end is the byte after the end of the buffer.
  * name is the name to search for. name must not be NULL, and must be null-terminated.
  * 
- * if tag is NULL it returns NULL.
- * if tag is malformed or not NBT_COMPOUND it returns NULL.
+ * if payload is NULL or payformed it returns NULL.
  * if no tag is found it returns an NBT_EMPTY tag.
  */
-static inline __nbt_nonnull(3)
-char *nbt_named(char *compound_tag, char *end, char *name) {
+static inline __nbt_nonnull(2)
+char *nbt_named(char *payload, char *name, char *end) {
     __nbt_assert(name != NULL);
-    return nbt_nnamed(compound_tag, end, name, strlen(name));
+    return nbt_nnamed(payload, name, strlen(name), end);
 }
 
 /**
@@ -411,11 +510,11 @@ char *nbt_named(char *compound_tag, char *end, char *name) {
  * Example:
 ```C
 
-char *sections = nbt_named(chunk_data, end, "sections");
+char *sections = nbt_named(chunk_data, "sections", end);
 char *section, *tag;
-nbt_list_foreach(nbt_payload(sections, NBT_LIST), end, section, 
-    nbt_compound_foreach(nbt_payload(section, NBT_COMPOUND), end, tag, {
-        printf("%.*s(%s)\n", nbt_name_size(tag), nbt_name(tag), nbt_type_as_string(nbt_type(tag)));
+nbt_list_foreach(nbt_payload(sections, NBT_LIST, end), end, section, 
+    nbt_compound_foreach(nbt_payload(section, NBT_COMPOUND, end), end, tag, {
+        printf("%.*s(%s)\n", nbt_name_size(tag, end), nbt_name(tag, end), nbt_type_as_string(nbt_type(tag, end)));
     })
 );
 
@@ -447,9 +546,9 @@ nbt_list_foreach(nbt_payload(sections, NBT_LIST), end, section,
 
 char *sections = nbt_named(chunk_data, end, "sections");
 char *section, *tag;
-nbt_list_foreach(nbt_payload(sections, NBT_LIST), end, section, 
-    nbt_compound_foreach(nbt_payload(section, NBT_COMPOUND), end, tag, {
-        printf("%.*s(%s)\n", nbt_name_size(tag), nbt_name(tag), nbt_type_as_string(nbt_type(tag)));
+nbt_list_foreach(nbt_payload(sections, NBT_LIST, end), end, section, 
+    nbt_compound_foreach(nbt_payload(section, NBT_COMPOUND, end), end, tag, {
+        printf("%.*s(%s)\n", nbt_name_size(tag, end), nbt_name(tag, end), nbt_type_as_string(nbt_type(tag, end)));
     })
 );
 

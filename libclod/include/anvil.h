@@ -67,6 +67,17 @@ void anvil_close(struct anvil_world *);
 // Region Reading //
 //================//
 
+/**
+ * The idea behind region reading is to give the user guidance on what region files to read.
+ * Implementing a getter API here doesn't work as the user doesn't know what regions actually exist in the world.
+ * You can't much iterate over every possible region file that might exist.
+ * 
+ * So an iterator that allows the user to visit every region file is made available.
+ * If a particular order of visitation is required then some new iter method/s can be added
+ * that facilitate this custom iteration order - but perhapse it's better to reconsider
+ * whatever use case it is that depends on iterating over files in a particular order...
+ */
+
 struct anvil_region {
     char *data;
     size_t data_size;
@@ -89,6 +100,21 @@ int anvil_region_iter_next(
     struct anvil_region_iter *
 );
 
+
+
+//===============//
+// Chunk Reading //
+//===============//
+
+/**
+ * The general idea behind chunk reading is that anvil_chunk_decompress uses the persisting
+ * resources (large allocated buffers & decompressors) in anvil_chunk_ctx to provide
+ * a transient view into chunk data that is only valid until the next call with the same context (resources are then reused).
+ * 
+ * This means that only one chunk can be loaded at a time, except it doesn't.
+ * If you need to load 4 chunks at once you can create 4 anvil_chunk_ctx's and use them without any special considerations.
+ */
+
 struct anvil_chunk_ctx;
 struct anvil_chunk_ctx *anvil_chunk_ctx_alloc(struct anvil_world *);
 void anvil_chunk_ctx_free(struct anvil_chunk_ctx *);
@@ -106,3 +132,53 @@ struct anvil_chunk anvil_chunk_decompress(
     int chunk_x,
     int chunk_z
 );
+
+
+
+//=================//
+// Section Reading //
+//=================//
+
+/**
+ * We somewhat return to the region file approach here - and for simmilar reasons too.
+ * 
+ * The number of sections (16x16x16) in a chunk is not set in stone.
+ * Sure, vanilla minecraft only has 16, but mods oftenn increase this limit - and the game facilitates this.
+ * 
+ * Sections are often very small, but are sometimes very large.
+ * This makes visiting the NBT data and keeping pointers to the relevent data for each section very inefficient,
+ * with the intermediate pointer structure being almost as large as the section data itself.
+ * 
+ * And parsing all section data into an intermediate format is most certainly out of the question,
+ * as it would be highly pressumptious of me to do a bunch of computing to create a data structure
+ * the user didn't ask for here.
+ * 
+ * So, we have an iterator. The user is taken along for a ride through all the sections in the chunk,
+ * and what they choose to parse, copy or ignore is up to them.
+ * 
+ * Notably, this iterates in the order the sections appear in the list - not based on the Y value.
+ * It seems as though the sections always appear in order.
+ * Figuring this out who to trust is left as an excercise for the user.
+ */
+
+struct anvil_section_iter {
+    char *next_section;         // pointer to the byte after this section.
+    char *end;                  // end of nbt data.
+    int section_count;          // the number of sectiosn in the section list.
+    int current_index;          // the index of the current section.
+
+    int section_y;              // Y coordinate of the section.
+    char *block_state_palette;  // list NBT tag. list of blocks (compound).
+    char *block_state_array;    // long array NBT payload. packed block state palette indicies.
+    char *biome_palette;        // list NBT tag. list of biomes (string).
+    char *biome_array;          // long array NBT payload. packed biome palette indicies.
+    char *block_light;          // byte array NBT payload.
+    char *sky_light;            // byte array NBT payload.
+};
+
+int anvil_section_iter_init(
+    struct anvil_section_iter *,
+    struct anvil_chunk
+);
+
+int anvil_section_iter_next(struct anvil_section_iter *);

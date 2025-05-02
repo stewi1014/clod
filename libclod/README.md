@@ -33,81 +33,6 @@ that slows both you and the program down. The non-goals of this project are note
 
 ## Headers
 
-### [nbt.h](./include/nbt.h)
-
-Very *very* fast NBT parsing library: ~5µs/chunk to traverse all chunk data in a world.
-It does not offer any intermediate representation of NBT data.
-
-Methods operate directly on the serialised data, which makes it fast as all get-out for parsing and making changes to serialised data.
-However some use cases do not need changes to be serialised,
-and can benefit from storing changes in an intermediate data format - this library is not for those use cases.
-For example, changing the name of a tag 100 times (with different lengths) means all data serialised after it needs to be moved 100 times,
-wheras staging those changes in a char* only requires setting a pointer 100 times.
-
-This approach also comes with an ergonomic downside;
-It's quite low-level - nuances of the NBT format are not abstracted away by this library, not really.
-So, if you're going to use it, make sure you're aware of how the NBT format works and
-note that even if you know how the NBT format works, this library will still be a pain to use.
-
-#### Examples
-
-##### Finding a specific tag with comprehensive error checking
-
-```C
-
-char *chunk_data = ...
-char *end = chunk_data + chunk_length;
-
-char *status = nbt_named(chunk_data, end, "Status")
-if (status == NULL) {
-    printf("corrupted NBT data.\n");
-} else if (nbt_type(status) == NBT_END) {
-    printf("no tag with name 'Status' found.\n");
-} else if (nbt_type(status) != NBT_STRING) {
-    printf(
-        "tag with name 'Status' exists, but is of type %s. Expected NBT_STRING\n", 
-        nbt_type_as_string(nbt_type(status))
-    );
-} else {
-    printf(
-        "chunk status: %.*s\n", 
-        nbt_string_size(nbt_payload(status, NBT_STRING)),
-        nbt_string(nbt_payload(status, NBT_STRING))
-    );
-}
-
-```
-
-##### Iterating over all tags in compound with "couldn't care less" error checking
-
-```C
-
-char *chunk_data = ...
-char *end = chunk_data + chunk_length;
-
-char *tag;
-nbt_compound_foreach(nbt_payload(chunk_data, NBT_COMPOUND), end, tag, {
-    printf("%.*s(%s)\n", nbt_name_size(tag), nbt_name(tag), nbt_type_as_string(nbt_type(tag)));
-});
-
-```
-
-##### Iterating over a specific nested tag with "couldn't care less" error checking
-
-```C
-
-char *chunk_data = ...
-char *end = chunk_data + chunk_length;
-
-char *section, *child;
-nbt_list_foreach(nbt_payload(nbt_named(chunk_data, end, "sections"), NBT_LIST), end, section, 
-    nbt_compound_foreach(nbt_payload(section, NBT_COMPOUND), end, child, {
-        printf("%.*s(%s)\n", nbt_name_size(child), nbt_name(child), nbt_type_as_string(nbt_type(child)));
-    })
-);
-
-```
-
 ### [anvil.h](./include/anvil.h)
 
 Methods for reading the anvil world format.
@@ -138,10 +63,12 @@ int main(int argc, char **argv) {
         struct anvil_chunk chunk;
         for (int x = 0; x < 32; x++) for (int z = 0; z < 32; z++) {
             chunk = anvil_chunk_decompress(chunk_ctx, &region, x, z);
+            char *end = chunk.data + chunk.data_size;
             if (chunk.data_size == 0) continue; // files often have empty chunks.
     
-            char *status = nbt_named(chunk.data, chunk.data + chunk.data_size, "Status");
-            if (status == NULL && nbt_type(status) != NBT_STRING) {
+            // use chunk NBT data...
+            char *status = nbt_named(nbt_payload(chunk.data, NBT_COMPOUND, end), "Status", end);
+            if (status == NULL && nbt_type(status, end) != NBT_STRING) {
                 printf(
                     "region (%d, %d); chunk (%d, %d) is corrupted\n", 
                     region.region_x,
@@ -156,12 +83,10 @@ int main(int argc, char **argv) {
                     region.region_z,
                     chunk.chunk_x,
                     chunk.chunk_z,
-                    nbt_string_size(nbt_payload(status, NBT_STRING)),
-                    nbt_string(nbt_payload(status, NBT_STRING))
+                    nbt_string_size(nbt_payload(status, NBT_STRING, end)),
+                    nbt_string(nbt_payload(status, NBT_STRING, end))
                 );
             }
-
-            // use chunk NBT data
         }
     }
     
@@ -178,6 +103,85 @@ int main(int argc, char **argv) {
 ```
 
 ### [dh.h](./include/dh.h)
+
+### [lod.h](./include/lod.h)
+
+### [nbt.h](./include/nbt.h)
+
+Very *very* fast NBT parsing library: ~5µs/chunk to traverse all chunk data in a world.
+It does not offer any intermediate representation of NBT data.
+
+Methods operate directly on the serialised data, which makes it fast as all get-out for parsing and making changes to serialised data.
+However some use cases do not need changes to be serialised,
+and can benefit from storing changes in an intermediate data format - this library is not for those use cases.
+For example, changing the name of a tag 100 times (with different lengths) means all data serialised after it needs to be moved 100 times,
+wheras staging those changes in a char* only requires setting a pointer 100 times.
+
+This approach also comes with an ergonomic downside;
+It's quite low-level - nuances of the NBT format are not abstracted away by this library, not really.
+It is cumbersome to use, and it's easy to write users of it that accidentally step through NBT data multiple times
+(one of the examples below does exactly that!).
+So, if you're going to use it, make sure you're aware of how the NBT format works and
+note that even if you know how the NBT format works, this library will still be a pain to use.
+
+#### Examples
+
+##### Finding a specific tag with comprehensive error checking
+
+```C
+
+char *chunk_data = ...
+char *end = chunk_data + chunk_length;
+
+char *status = nbt_named(nbt_payload(chunk_data, NBT_COMPOUND, end), "Status", end)
+if (status == NULL) {
+    printf("corrupted NBT data.\n");
+} else if (nbt_type(status, end) == NBT_END) {
+    printf("no tag with name 'Status' found.\n");
+} else if (nbt_type(status, end) != NBT_STRING) {
+    printf(
+        "tag with name 'Status' exists, but is of type %s. Expected NBT_STRING\n", 
+        nbt_type_as_string(nbt_type(status, end))
+    );
+} else {
+    printf(
+        "chunk status: %.*s\n", 
+        nbt_string_size(nbt_payload(status, NBT_STRING, end)),
+        nbt_string(nbt_payload(status, NBT_STRING, end))
+    );
+}
+
+```
+
+##### Iterating over all tags in compound with "couldn't care less" error checking
+
+```C
+
+char *chunk_data = ...
+char *end = chunk_data + chunk_length;
+
+char *tag;
+nbt_compound_foreach(nbt_payload(chunk_data, NBT_COMPOUND, end), end, tag, {
+    printf("%.*s(%s)\n", nbt_name_size(tag, end), nbt_name(tag, end), nbt_type_as_string(nbt_type(tag, end)));
+});
+
+```
+
+##### Iterating over a specific nested tag with "couldn't care less" error checking
+
+```C
+
+char *chunk_data = ...
+char *end = chunk_data + chunk_length;
+
+char *section, *child;
+nbt_list_foreach(nbt_payload(nbt_named(nbt_payload(chunk_data, NBT_COMPOUND, end), "sections", end), NBT_LIST), end, section, 
+    nbt_compound_foreach(nbt_payload(section, NBT_COMPOUND, end), end, child, {
+        printf("%.*s(%s)\n", nbt_name_size(child, end), nbt_name(child, end), nbt_type_as_string(nbt_type(child, end)));
+    })
+);
+
+```
 
 ## Dependencies
 

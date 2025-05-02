@@ -6,7 +6,9 @@ libclod_headers = [
 ]
 
 libclod_sources = libclod_headers + [
-    'src/anvil.c',
+    'src/anvil_chunk.c',
+    'src/anvil_world.c',
+    'src/anvil_world.h',
     'src/dh_db.c',
     'src/dh_lod.c',
     'src/file.h',
@@ -64,9 +66,10 @@ install_headers(libclod_headers)
 # tests
 test_cases = [
     'open_world',
-    'open_world_benchmark',
     'open_zlib_region',
     'parse_nbt',
+    'read_chunk_sections_benchmark',
+    'read_chunk_sections',
     'write_dh_database',
 ]
 

@@ -14,8 +14,6 @@ int main(int argc, char **argv) {
         return -1;
     }
 
-    struct anvil_chunk_ctx *chunk_ctx = anvil_chunk_ctx_alloc(NULL);
-
     struct timespec start, end;
     struct timespec decompress_start, decompress_end;
     struct timespec nbt_visit_start, nbt_visit_end;
@@ -23,6 +21,7 @@ int main(int argc, char **argv) {
     size_t size_total = 0, chunk_total = 0;
     timespec_get(&start, TIME_UTC);
     
+    struct anvil_chunk_ctx *chunk_ctx = anvil_chunk_ctx_alloc(NULL);
     struct anvil_region_iter *iter = anvil_region_iter_new("region", world);
     struct anvil_region region;
     int error;
@@ -33,36 +32,43 @@ int main(int argc, char **argv) {
     
         for (int x = 0; x < 32; x++) for (int z = 0; z < 32; z++) {
             timespec_get(&decompress_start, TIME_UTC);
-            chunk = anvil_chunk_decompress(chunk_ctx, &region, x, z);
-            char *end = chunk.data + chunk.data_size;
+
+                chunk = anvil_chunk_decompress(chunk_ctx, &region, x, z);
+                if (chunk.data_size == 0) continue;
+
             timespec_get(&decompress_end, TIME_UTC);
             
-            if (chunk.data_size == 0) continue;
             
             timespec_get(&nbt_visit_start, TIME_UTC);
-    
-            char *tag = chunk.data;
-            nbt_compound_foreach(nbt_payload(chunk.data, NBT_COMPOUND), end, tag, {
-                //printf("%.*s(%s)\n", nbt_name_size(tag), nbt_name(tag), nbt_type_as_string(nbt_type(tag)));
-            });
+
+                struct anvil_section_iter section;
+                if (anvil_section_iter_init(&section, chunk)) {
+                    printf("ewwor\n");
+                    __builtin_trap();
+                }
+
+                while (!anvil_section_iter_next(&section)) {
+                    printf(
+                        "region (%d, %d), section(%d, %d, %d), %p %p %p %p %p %p\n", 
+                        region.region_x, region.region_z,
+                        chunk.chunk_x, section.section_y, chunk.chunk_z,
+                        section.block_state_palette,
+                        section.block_state_array,
+                        section.biome_palette,
+                        section.biome_array,
+                        section.block_light,
+                        section.sky_light
+                    );
+                }
             
             timespec_get(&nbt_visit_end, TIME_UTC);
     
-            assert(tag - chunk.data == chunk.data_size);
-            size_total += tag - chunk.data;
             chunk_total++;
-    
-            decompress_ns += 
-                (decompress_end.tv_sec * 1000000000L + decompress_end.tv_nsec) -
-                (decompress_start.tv_sec * 1000000000L + decompress_start.tv_nsec);
-    
-            nbt_visit_ns += 
-                (nbt_visit_end.tv_sec * 1000000000L + nbt_visit_end.tv_nsec) -
-                (nbt_visit_start.tv_sec * 1000000000L + nbt_visit_start.tv_nsec);
+            size_total += chunk.data_size;
+            decompress_ns += (decompress_end.tv_sec * 1000000000L + decompress_end.tv_nsec) - (decompress_start.tv_sec * 1000000000L + decompress_start.tv_nsec);
+            nbt_visit_ns += (nbt_visit_end.tv_sec * 1000000000L + nbt_visit_end.tv_nsec) - (nbt_visit_start.tv_sec * 1000000000L + nbt_visit_start.tv_nsec);
         }        
     }
-    printf("\n");
-
     if (error < 0) {
         printf("%s\n", strerror(errno));
         return -1;
