@@ -24,8 +24,12 @@ int main(int argc, char **argv) {
             if (chunk.data_size == 0) continue; // files often have empty chunks.
     
             // use chunk NBT data...
-            char *status = nbt_named(nbt_payload(chunk.data, NBT_COMPOUND, end), "Status", end);
-            if (status == NULL && nbt_type(status, end) != NBT_STRING) {
+            char *status;
+            end = nbt_named(nbt_payload(chunk.data, NBT_COMPOUND, end), end,
+                "Status", strlen("Status"), NBT_STRING, &status,
+                NULL
+            );
+            if (end == NULL || status == NULL) {
                 printf(
                     "region (%d, %d); chunk (%d, %d) is corrupted\n", 
                     region.region_x,
@@ -40,8 +44,8 @@ int main(int argc, char **argv) {
                     region.region_z,
                     chunk.chunk_x,
                     chunk.chunk_z,
-                    nbt_string_size(nbt_payload(status, NBT_STRING, end)),
-                    nbt_string(nbt_payload(status, NBT_STRING, end))
+                    nbt_string_size(status),
+                    nbt_string(status)
                 );
             }
         }

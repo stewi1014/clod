@@ -1,6 +1,7 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <string.h>
+#include <stdarg.h>
 
 #include "nbt.h"
 
@@ -164,20 +165,82 @@ char *nbt_name_setn(char *tag, char *end, char *name, uint16_t new_size){
 // Syntactic Sugar //
 //=================//
 
-char *nbt_nnamed(char *payload, char *name, size_t name_size, char *end) {
-    __nbt_assert(name != NULL);
-    char *child = payload;
-    while (child != NULL) {
-        if (!__nbt_has_data(payload, end, 1)) return NULL;
-        if (child[0] == NBT_END) return child;
+char *nbt_named(char *payload, char *end, 
+    char *name, size_t name_size, int type, void *dest,
+    ...
+) {
+    if (payload == NULL) {
+        return NULL;
+    }
 
-        if (!__nbt_has_data(payload, end, 3)) return NULL;
-        uint16_t child_name_size = nbt_name_size(child, end);
+    va_list va;
+    va_start(va, dest);
 
-        if (!__nbt_has_data(payload, end, 3 + child_name_size)) return NULL;
-        if (child_name_size == name_size && 0 == strncmp(name, child + 3, child_name_size)) return child;
+    while (payload != NULL) {
+        if (!__nbt_has_data(payload, end, 1)) {
+            return NULL;
+        }
 
-        child = nbt_payload_step(child + 3 + child_name_size, child[0], end);
+        char tag_type = payload[0];
+        if (tag_type == NBT_END) {
+            return payload + 1;
+        }
+
+        if (!nbt_type_is_valid(tag_type) || !__nbt_has_data(payload, end, 3)) {
+            return NULL;
+        }
+
+        uint16_t tag_name_size = nbt_name_size(payload, end);
+
+        if (!__nbt_has_data(payload, end, 3 + tag_name_size)) {
+            return NULL;
+        }
+
+        char *va_name = name;
+        size_t va_name_size = name_size;
+        char va_type = type;
+        void *va_dest = dest;
+        va_list iter;
+        va_copy(iter, va);
+
+    next:
+        if (tag_name_size == va_name_size && 0 == strncmp(nbt_name(payload, end), va_name, va_name_size)) {
+            if (va_type == NBT_ANY_INTEGER && nbt_type_is_integer(tag_type)) {
+                switch (tag_type) {
+                case NBT_BYTE: *((int64_t*)va_dest) = nbt_byte(payload + 3 + tag_name_size); break;
+                case NBT_SHORT: *((int64_t*)va_dest) = nbt_short(payload + 3 + tag_name_size); break;
+                case NBT_INT: *((int64_t*)va_dest) = nbt_int(payload + 3 + tag_name_size); break;
+                case NBT_LONG: *((int64_t*)va_dest) = nbt_long(payload + 3 + tag_name_size); break;
+                }
+            }
+
+            else if (va_type == NBT_ANY_NUMBER && nbt_type_is_number(tag_type)) {
+                switch (tag_type) {
+                case NBT_BYTE: *((double*)va_dest) = nbt_byte(payload + 3 + tag_name_size); break;
+                case NBT_SHORT: *((double*)va_dest) = nbt_short(payload + 3 + tag_name_size); break;
+                case NBT_INT: *((double*)va_dest) = nbt_int(payload + 3 + tag_name_size); break;
+                case NBT_LONG: *((double*)va_dest) = nbt_long(payload + 3 + tag_name_size); break;
+                case NBT_FLOAT: *((double*)va_dest) = nbt_float(payload + 3 + tag_name_size); break;
+                case NBT_DOUBLE: *((double*)va_dest) = nbt_double(payload + 3 + tag_name_size); break;
+                }
+            }
+
+            else if (va_type == tag_type) {
+                *((char**)va_dest) = payload + 3 + tag_name_size;
+            }
+        }
+
+        va_name = va_arg(iter, char*);
+        if (va_name != NULL) {
+            va_name_size = va_arg(iter, size_t);
+            va_type = va_arg(iter, int);
+            va_dest = va_arg(iter, void*);
+            goto next;
+        }
+
+        va_end(iter);
+
+        payload = nbt_payload_step(payload + 3 + tag_name_size, tag_type, end);
     }
 
     return NULL;

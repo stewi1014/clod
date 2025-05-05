@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <gc.h>
+#include <stdint.h>
 
 #include <sqlite3.h>
 
@@ -71,7 +71,7 @@ int run_migration(sqlite3 *db, char *name, const char *sql, int sql_size) {
         sql = tail;
     };
 
-    err = sqlite3_prepare_v2(db, "insert into Schema (ScriptName) values(?)",-1, &stmt, NULL);
+    err = sqlite3_prepare_v2(db, "insert into Schema (ScriptName) values(?)", -1, &stmt, NULL);
     if (err != SQLITE_OK) {
         fprintf(stderr, "checking migration %s: (%d) %s\n", name, err, sqlite3_errmsg(db));
         return -1;
@@ -254,27 +254,29 @@ void dh_db_close(struct dh_db *db) {
 
 }
 
-int dh_db_store(struct dh_db *db, struct dh_db_lod *lod) {
+int dh_db_store(struct dh_db *db, struct dh_lod *lod) {
     if (db == NULL || lod == NULL) return -1;
 
     #define CHECK_ERROR(stmt) ({ if ((stmt) != SQLITE_OK) \
         fprintf(stderr, #stmt ": %s\n", sqlite3_errmsg(db->db)); })
 
-    CHECK_ERROR(sqlite3_bind_int(db->store, 1, lod->detail_level));
-    CHECK_ERROR(sqlite3_bind_int(db->store, 2, lod->pos_x));
-    CHECK_ERROR(sqlite3_bind_int(db->store, 3, lod->pos_z));
-    CHECK_ERROR(sqlite3_bind_int(db->store, 4, lod->min_y));
-    CHECK_ERROR(sqlite3_bind_int(db->store, 5, lod->data_checksum));
-    CHECK_ERROR(sqlite3_bind_blob(db->store, 6, lod->data, 0, NULL));
-    CHECK_ERROR(sqlite3_bind_blob(db->store, 7, lod->column_generation_step, 0, NULL));
-    CHECK_ERROR(sqlite3_bind_blob(db->store, 8, lod->column_world_compression_mode, 0, NULL));
-    CHECK_ERROR(sqlite3_bind_blob(db->store, 9, lod->mapping, 0, NULL));
-    CHECK_ERROR(sqlite3_bind_int(db->store, 10, lod->data_format_version));
-    CHECK_ERROR(sqlite3_bind_int(db->store, 11, lod->compression_mode));
-    CHECK_ERROR(sqlite3_bind_int(db->store, 12, lod->apply_to_parent));
-    CHECK_ERROR(sqlite3_bind_int(db->store, 13, lod->apply_to_children));
-    CHECK_ERROR(sqlite3_bind_int64(db->store, 14, lod->last_modified_time));
-    CHECK_ERROR(sqlite3_bind_int64(db->store, 15, lod->created_time));
+    /*
+    CHECK_ERROR(sqlite3_bind_int(db->store, 1, detail_level));
+    CHECK_ERROR(sqlite3_bind_int(db->store, 2, pos_x));
+    CHECK_ERROR(sqlite3_bind_int(db->store, 3, pos_z));
+    CHECK_ERROR(sqlite3_bind_int(db->store, 4, min_y));
+    CHECK_ERROR(sqlite3_bind_int(db->store, 5, data_checksum));
+    CHECK_ERROR(sqlite3_bind_blob(db->store, 6, data, 0, NULL));
+    CHECK_ERROR(sqlite3_bind_blob(db->store, 7, column_generation_step, 0, NULL));
+    CHECK_ERROR(sqlite3_bind_blob(db->store, 8, column_world_compression_mode, 0, NULL));
+    CHECK_ERROR(sqlite3_bind_blob(db->store, 9, mapping, 0, NULL));
+    CHECK_ERROR(sqlite3_bind_int(db->store, 10, data_format_version));
+    CHECK_ERROR(sqlite3_bind_int(db->store, 11, compression_mode));
+    CHECK_ERROR(sqlite3_bind_int(db->store, 12, apply_to_parent));
+    CHECK_ERROR(sqlite3_bind_int(db->store, 13, apply_to_children));
+    CHECK_ERROR(sqlite3_bind_int64(db->store, 14, last_modified_time));
+    CHECK_ERROR(sqlite3_bind_int64(db->store, 15, created_time));
+    */
 
     int error;
     error = sqlite3_step(db->store);

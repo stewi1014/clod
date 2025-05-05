@@ -6,6 +6,7 @@
 
 #pragma once
 #include <stddef.h>
+#include <stdint.h>
 
 struct anvil_world;
 
@@ -139,46 +140,71 @@ struct anvil_chunk anvil_chunk_decompress(
 // Section Reading //
 //=================//
 
-/**
- * We somewhat return to the region file approach here - and for simmilar reasons too.
- * 
- * The number of sections (16x16x16) in a chunk is not set in stone.
- * Sure, vanilla minecraft only has 16, but mods oftenn increase this limit - and the game facilitates this.
- * 
- * Sections are often very small, but are sometimes very large.
- * This makes visiting the NBT data and keeping pointers to the relevent data for each section very inefficient,
- * with the intermediate pointer structure being almost as large as the section data itself.
- * 
- * And parsing all section data into an intermediate format is most certainly out of the question,
- * as it would be highly pressumptious of me to do a bunch of computing to create a data structure
- * the user didn't ask for here.
- * 
- * So, we have an iterator. The user is taken along for a ride through all the sections in the chunk,
- * and what they choose to parse, copy or ignore is up to them.
- * 
- * Notably, this iterates in the order the sections appear in the list - not based on the Y value.
- * It seems as though the sections always appear in order.
- * Figuring this out who to trust is left as an excercise for the user.
- */
-
-struct anvil_section_iter {
-    char *next_section;         // pointer to the byte after this section.
-    char *end;                  // end of nbt data.
-    int section_count;          // the number of sectiosn in the section list.
-    int current_index;          // the index of the current section.
-
-    int section_y;              // Y coordinate of the section.
-    char *block_state_palette;  // list NBT tag. list of blocks (compound).
-    char *block_state_array;    // long array NBT payload. packed block state palette indicies.
-    char *biome_palette;        // list NBT tag. list of biomes (string).
-    char *biome_array;          // long array NBT payload. packed biome palette indicies.
-    char *block_light;          // byte array NBT payload.
-    char *sky_light;            // byte array NBT payload.
+struct anvil_section {              // contains pointers to NBT data for a specific section.
+    char *end;                      // the end of the section's NBT data, and start of next section.
+    char *block_state_palette;      // list NBT payload. list of blocks (compound).
+    uint16_t *block_state_indicies; // 16x16x16 array of block state indicies. inaccurate if block state palette size is <= 1
+    char *biome_palette;            // list NBT payload. list of biomes (string).
+    uint16_t *biome_indicies;       // 4x4x4 array of biome indicies. inaccurate if biome palette size is <= 1
+    char *block_light;              // byte array NBT payload.
+    char *sky_light;                // byte array NBT payload.
 };
 
-int anvil_section_iter_init(
-    struct anvil_section_iter *,
-    struct anvil_chunk
+struct anvil_sections {
+    struct anvil_section *section; // array of sections.
+    int64_t len;                   // the number of sections in the array.
+    int64_t cap;                   // the size (in sections) of the allocated array.
+
+    signed min_y;                   // the lowest section y value. can be added to index to get section Y.
+    char *start;                    // the start of this section's data.
+};
+
+#define ANVIL_SECTIONS_CLEAR (struct anvil_sections){NULL, 0, 0}
+
+/**
+ * parses the sections in the chunk into an array.
+ * 
+ * the array is sorted in decending y order.
+ * 
+ * sections must be ANVIL_SECTIONS_CLEAR, or the result of a previous call to anvil_arse_sections.
+ * the caller is responsible foor freeing the array when done.
+ * 
+ * it returns nonzero on failure.
+ */
+int anvil_parse_sections_ex(
+    struct anvil_sections *sections,
+    struct anvil_chunk,
+    void *(*realloc)(void*, size_t)
 );
 
-int anvil_section_iter_next(struct anvil_section_iter *);
+/**
+ * parses the sections in the chunk into an array.
+ * 
+ * the array is sorted in decending y order.
+ * 
+ * sections must be ANVIL_SECTIONS_CLEAR, or the result of a previous call to anvil_arse_sections.
+ * the caller is responsible foor freeing the array when done.
+ * 
+ * it returns nonzero on failure.
+ */
+static inline
+int anvil_parse_sections(
+    struct anvil_sections *sections,
+    struct anvil_chunk chunk
+) {
+    return anvil_parse_sections_ex(sections, chunk, NULL);
+}
+
+/** releases resources accociated with the sections. */
+void anvil_sections_free_ex(
+    struct anvil_sections *sections,
+    void (*free_f)(void*)
+);
+
+/** releases resources accociated with the sections. */
+static inline
+void anvil_sections_free(
+    struct anvil_sections *sections
+) {
+    anvil_sections_free_ex(sections, NULL);
+}

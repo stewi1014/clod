@@ -1,5 +1,6 @@
-#include <stdio.h>
+#include <stdlib.h>
 #include <errno.h>
+#include <stdio.h>
 #include <string.h>
 
 #include <anvil.h>
@@ -15,6 +16,8 @@ int main(int argc, char **argv) {
     struct anvil_chunk_ctx *chunk_ctx = anvil_chunk_ctx_alloc(NULL);
     struct anvil_region_iter *iter = anvil_region_iter_new("region", world); // e.g. region, DIM1, DIM-1.
     struct anvil_region region;
+    struct anvil_sections sections = ANVIL_SECTIONS_CLEAR;
+
     int error;
     while (!(error = anvil_region_iter_next(&region, iter))) {
         struct anvil_chunk chunk;
@@ -22,23 +25,22 @@ int main(int argc, char **argv) {
             chunk = anvil_chunk_decompress(chunk_ctx, &region, x, z);
             if (chunk.data_size == 0) continue; // files often have empty chunks.
             
-            struct anvil_section_iter section;
-            if (anvil_section_iter_init(&section, chunk)) {
+            if (anvil_parse_sections(&sections, chunk)) {
                 printf("ewwor\n");
                 __builtin_trap();
             }
 
-            while (!anvil_section_iter_next(&section)) {
+            for (int i = 0; i < sections.len; i++) {
                 printf(
                     "region (%d, %d), section(%d, %d, %d), %p %p %p %p %p %p\n", 
                     region.region_x, region.region_z,
-                    chunk.chunk_x, section.section_y, chunk.chunk_z,
-                    section.block_state_palette,
-                    section.block_state_array,
-                    section.biome_palette,
-                    section.biome_array,
-                    section.block_light,
-                    section.sky_light
+                    chunk.chunk_x, i + sections.min_y, chunk.chunk_z,
+                    sections.section[i].block_state_palette,
+                    sections.section[i].block_state_indicies,
+                    sections.section[i].biome_palette,
+                    sections.section[i].biome_indicies,
+                    sections.section[i].block_light,
+                    sections.section[i].sky_light
                 );
             }
         }
@@ -51,5 +53,6 @@ int main(int argc, char **argv) {
     
     anvil_chunk_ctx_free(chunk_ctx);
     anvil_region_iter_free(iter);
+    anvil_sections_free(&sections);
     anvil_close(world);
 }

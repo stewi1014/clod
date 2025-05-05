@@ -115,7 +115,7 @@ Methods operate directly on the serialised data, which makes it fast as all get-
 However some use cases do not need changes to be serialised,
 and can benefit from storing changes in an intermediate data format - this library is not for those use cases.
 For example, changing the name of a tag 100 times (with different lengths) means all data serialised after it needs to be moved 100 times,
-wheras staging those changes in a char* only requires setting a pointer 100 times.
+wheras copying the NBT data to a different location in memory allows the copy to be modified without reshuffling.
 
 This approach also comes with an ergonomic downside;
 It's quite low-level - nuances of the NBT format are not abstracted away by this library, not really.
@@ -184,6 +184,8 @@ nbt_list_foreach(nbt_payload(nbt_named(nbt_payload(chunk_data, NBT_COMPOUND, end
 ```
 
 ## Dependencies
+
+Make sure these are findable by meson.
 
 - libdeflate
 - liblz4

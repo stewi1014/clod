@@ -10,7 +10,8 @@ libclod_sources = libclod_headers + [
     'src/anvil_world.c',
     'src/anvil_world.h',
     'src/dh_db.c',
-    'src/dh_lod.c',
+    'src/dh_generate.c',
+    'src/dh_serialise.c',
     'src/file.h',
     'src/file.c',
     'src/nbt.c',
@@ -38,8 +39,6 @@ foreach migration : libclod_dh_migrations
     )
 endforeach
 
-add_global_arguments('-DUSE_MMAP', language: 'c')
-
 libclod = library(
     'clod',
     libclod_sources,
@@ -65,6 +64,7 @@ install_headers(libclod_headers)
 
 # tests
 test_cases = [
+    'generate_dh_lod',
     'open_world',
     'open_zlib_region',
     'parse_nbt',

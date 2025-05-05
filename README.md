@@ -6,12 +6,22 @@ _A lump or mass especially of earth or clay_
 
 - Her husband's such a clod.
 - The ground was thin, with clods of turf washed away by recent rain, and the dark soil beneath had pushed its way to the surface once again.
-- The luddites favoured clod due to its avoidance of counterproductive abstractions.
 
 ### Structure
 
 - [cli](./cli) command line interface.
 - [libclod](./libclod) C library - the main point of this project.
+
+### Dependencies
+
+Make sure these are findable by meson.
+
+- libdeflate
+- liblz4
+- libzstd
+- liblzma
+- sqlite3
+- libpq
 
 ### Development
 
@@ -33,9 +43,11 @@ Some examples; `gradle fabric-1.19.1:runClient`, `gradle fabric-1.20.1:build`, `
 ### Platforms
 
 If I'm honest with myself, I can only properly support GCC linux.x86_64 -> linux.x86_64.
-That being said, I would like to support as many target environments as possible.
-If you use a different environment I'd love to merge any patches you make suppporting it.
+That being said, I would like to support as many platforms as possible.
+If you use a different platform I'd love to merge any patches you make suppporting it.
 
 At the time of writing;
-OSX might _just work_ - I've tried to avoid anything not posix.
-Windows is missing a few platform dependent functions, but shouldn't require rewriting anything I hope.
+Any combination of *BSD, Linux, x86_64 and ARM should work perfectly.
+With any luck I've one-shot OSX support perfectly - I've tried to avoid anything not posix.
+Windows is missing a few platform dependent functions, but ~~shouldn't require rewriting anything I hope~~.
+I've accidentally coupled too closely with methods I didn't realise don't exist in windows - some code needs rewriting by someone on a windows system.

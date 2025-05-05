@@ -72,6 +72,10 @@ char *nbt_payload_step(char *payload, char type, char *end) __nbt_nonnull(1);
 // Serialisation //
 //===============//
 
+#define NBT_ANY_NUMBER -2
+#define NBT_ANY_INTEGER -1
+
+
 #define NBT_END 0
 #define NBT_BYTE 1
 #define NBT_SHORT 2
@@ -446,7 +450,13 @@ double nbt_autonumber(char *tag) {
 static inline
 uint64_t nbt_packed_array_elem(char *payload, int i, int bits) {
     __nbt_assert(payload != NULL);
+
+    int32_t size = nbt_long_array_size(payload);
+    payload = nbt_long_array_payload(payload);
+
     int c = 64 / bits;
+
+    __nbt_assert((i / c) < size);
 
     payload += (i / c) * 8;
     uint64_t n =
@@ -473,129 +483,47 @@ uint64_t nbt_packed_array_elem(char *payload, int i, int bits) {
  * 
  * payload is a buffer containing a compound payload.
  * end is the byte after the end of the buffer.
- * name is the name to search for. name must not be NULL.
+ * 
+ * the varidic arguments are a null-termianted repeating set of
+ * char *name, size_t name_size, char type, char **dest
+ * 
+ * name is the name to search for.
  * name_size is the size of name.
+ * type is the type of the tag, or one of the special 'any' types.
+ * dest is assigned to the found tag's payload if found and of the correct type.
  * 
- * if payload is NULL or payformed it returns NULL.
- * if no tag is found it returns an NBT_EMPTY tag.
- */
-char *nbt_nnamed(char *payload, char *name, size_t name_size, char *end) __nbt_nonnull(2);
+ * if payload is NULL or malformed it returns NULL.
+ * it returns the byte after the payload's end.
+ * 
+ * if type is NBT_ANY_NUMBER is used, dest must be int64_t*.
+ * if 
+ * 
+ * Example:
+```C
+struct anvil_chunk chunk = anvil_chunk_decompress(chunk_ctx, &region, x, z);
 
-/**
- * finds the child tag in the compound payload that has the given name.
- * same as nbt_nnamed, but takes a normal null-termianted string instead.
- * 
- * payload is a buffer containing a compound payload.
- * end is the byte after the end of the buffer.
- * name is the name to search for. name must not be NULL, and must be null-terminated.
- * 
- * if payload is NULL or payformed it returns NULL.
- * if no tag is found it returns an NBT_EMPTY tag.
- */
-static inline __nbt_nonnull(2)
-char *nbt_named(char *payload, char *name, char *end) {
-    __nbt_assert(name != NULL);
-    return nbt_nnamed(payload, name, strlen(name), end);
+char *data_version = NULL, *status = NULL;
+char *end = nbt_named(chunk.data, chunk.data + chunk.data_size,
+    "DataVersion", strlen("DataVersion"), NBT_INT, &data_version,
+    "Status", strlen("Status"), NBT_STRING, &status,
+    NULL
+);
+
+if (end == NULL) {
+    printf("corrupted NBT data.\n");
+} else if (status == NULL) {
+    printf("no tag with name 'Status' and type NBT_STRING found.\n");
+} else {
+    printf(
+        "chunk status: %.*s\n", 
+        nbt_string_size(status),
+        nbt_string(status)
+    );
 }
-
-/**
- * iterates over elements of a list payload,
- * assigning elem to each element and running the code block.
- * 
- * it steps through each element on its own, so if you're also stepping
- * through elements in the code block - you're doing it twice. *wasteful*
- * 
- * "returns" the byte after the payload, or NULL if payload is NULL or malformed.
- * 
- * Example:
-```C
-
-char *sections = nbt_named(chunk_data, "sections", end);
-char *section, *tag;
-nbt_list_foreach(nbt_payload(sections, NBT_LIST, end), end, section, 
-    nbt_compound_foreach(nbt_payload(section, NBT_COMPOUND, end), end, tag, {
-        printf("%.*s(%s)\n", nbt_name_size(tag, end), nbt_name(tag, end), nbt_type_as_string(nbt_type(tag, end)));
-    })
-);
-
-````
- * 
- */
-#define nbt_list_foreach(payload, end, elem, code) (\
-    (payload) == NULL || !__nbt_has_data(payload, end, 5) ? NULL : ({\
-        (elem) = nbt_list_payload(payload);\
-        for (int32_t __nbt_##elem##_i = 0; (elem) != NULL && __nbt_##elem##_i < nbt_list_size(payload); __nbt_##elem##_i++) {\
-            (code);\
-            (elem) = nbt_payload_step(elem, nbt_list_etype(payload), end);\
-        };\
-        (elem);\
-    })\
-)
-
-/**
- * iterates over elements of a compound payload,
- * assigning elem to each element and running the code block.
- * 
- * it steps through each element on its own, so if you're also stepping
- * through elements in the code block - you're doing it twice. *wasteful*
- * 
- * "returns" the byte after the payload, or NULL if payload is NULL or malformed.
- * 
- * Example:
-```C
-
-char *sections = nbt_named(chunk_data, end, "sections");
-char *section, *tag;
-nbt_list_foreach(nbt_payload(sections, NBT_LIST, end), end, section, 
-    nbt_compound_foreach(nbt_payload(section, NBT_COMPOUND, end), end, tag, {
-        printf("%.*s(%s)\n", nbt_name_size(tag, end), nbt_name(tag, end), nbt_type_as_string(nbt_type(tag, end)));
-    })
-);
 
 ```
  */
-#define nbt_compound_foreach(payload, end, elem, code) (\
-    (payload) == NULL || !__nbt_has_data(payload, end, 1) ? NULL : ({\
-        (elem) = (payload);\
-        while (\
-            (elem) != NULL &&\
-            __nbt_has_data(elem, end, 1) &&\
-            (elem)[0] != NBT_END &&\
-            nbt_type_is_valid((elem)[0]) &&\
-            __nbt_has_data(elem, end, 3)\
-        ) {\
-            (code);\
-            (elem) = nbt_step(elem, end);\
-        }\
-        (elem) != NULL && \
-        __nbt_has_data(elem, end, 1) && \
-        (elem)[0] == NBT_END \
-            ? (elem) += 1 : NULL;\
-    })\
-)
-
-/**
- * iterates over ints in the array.
- */
-#define nbt_int_array_foreach(payload, end, elem, code) (\
-    (payload) == NULL || !__nbt_has_data(payload, end, 4) ? NULL : ({\
-        (elem) = nbt_int_array(payload);\
-        !__nbt_has_data(elem, end, 4 * nbt_int_array_size(payload)) ? NULL : ({\
-            for (int32_t __nbt_##elem##_i = 0; __nbt_##elem##_i < nbt_int_array_size(payload); __nbt_##elem##_i++, (elem) += 4) (code);\
-            (elem);\
-        });\
-    })\
-)
-
-/**
- * iterates over longs in the array.
- */
-#define nbt_long_array_foreach(payload, end, elem, code) (\
-    (payload) == NULL || !__nbt_has_data(payload, end, 4) ? NULL : ({\
-        (elem) = nbt_long_array(payload);\
-        !__nbt_has_data(elem, end, 8 * nbt_long_array_size(payload)) ? NULL : ({\
-            for (int32_t __nbt_##elem##_i = 0; __nbt_##elem##_i < nbt_long_array_size(payload); __nbt_##elem##_i++, (elem) += 8) (code);\
-            (elem);\
-        });\
-    })\
-)
+char *nbt_named(char *payload, char *end, 
+    char *name, size_t name_size, int type, void *dest,
+    ...
+);

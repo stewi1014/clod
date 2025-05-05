@@ -4,10 +4,11 @@
 #include <dh.h>
 
 int main(int argc, char **argv) {
+    /*
     struct dh_db *db = dh_db_open("DistantHorizons.sqlite");
     assert(db != NULL);
     
-    struct dh_db_lod lod = {
+    struct dh_db_lod lod = { 
         .detail_level = 0,
         .pos_x = 0, 
         .pos_z = 0,
@@ -33,4 +34,5 @@ int main(int argc, char **argv) {
     remove("DistantHorizons.sqlite");
 
     return 0;
+    */
 }

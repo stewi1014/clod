@@ -30,26 +30,5 @@ int main(int argc, char **argv) {
             nbt_string(nbt_payload(status, NBT_STRING, end))
     );
 
-    char *tag = NULL;
-    nbt_compound_foreach(nbt_payload(chunk_data, NBT_COMPOUND, end), end, tag, {
-        //printf("%.*s(%s)\n", nbt_name_size(tag), nbt_name(tag), nbt_type_as_string(nbt_type(tag)));
-    });
-    assert(tag == end);
-
-    char *sections = nbt_named(nbt_payload(chunk_data, NBT_COMPOUND, end), "sections", end);
-    char *section;
-    nbt_list_foreach(nbt_payload(sections, NBT_LIST, end), NULL, section, {
-        char *y_val = nbt_named(section, "Y", end);
-
-
-        nbt_compound_foreach(section, NULL, tag, {
-            printf("%.*s(%s)\n", nbt_name_size(tag, end), nbt_name(tag, end), nbt_type_as_string(nbt_type(tag, end)));
-        });
-
-    
-        printf("section Y: %ld\n", nbt_autointeger(y_val, end));
-    });
-    assert(section == nbt_step(sections, NULL));
-
     return 0;
 }

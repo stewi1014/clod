@@ -45,15 +45,11 @@ int main(int argc, char **argv) {
     for (int x = 0; x < CHUNKS; x++) for (int z = 0; z < CHUNKS; z++) {
         timespec_get(&decompress_start, TIME_UTC);
         chunk = anvil_chunk_decompress(chunk_ctx, &region, x, z);
-        char *end = chunk.data + chunk.data_size;
         timespec_get(&decompress_end, TIME_UTC);
 
         timespec_get(&nbt_visit_start, TIME_UTC);
 
-        char *tag = chunk.data;
-        nbt_compound_foreach(nbt_payload(chunk.data, NBT_COMPOUND, end), end, tag, {
-            //printf("%.*s(%s)\n", nbt_name_size(tag), nbt_name(tag), nbt_type_as_string(nbt_type(tag)));
-        });
+        char *tag = nbt_step(chunk.data, chunk.data + chunk.data_size);
         
         timespec_get(&nbt_visit_end, TIME_UTC);
 
