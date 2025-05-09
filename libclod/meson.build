@@ -64,7 +64,8 @@ install_headers(libclod_headers)
 
 # tests
 test_cases = [
-    'generate_dh_lod',
+    'generate_dh_lods_benchmark',
+    'generate_dh_lods',
     'open_world',
     'open_zlib_region',
     'parse_nbt',

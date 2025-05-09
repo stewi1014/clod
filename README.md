@@ -11,6 +11,8 @@ _A lump or mass especially of earth or clay_
 
 - [cli](./cli) command line interface.
 - [libclod](./libclod) C library - the main point of this project.
+- [mod](./mod) minecraft mod that provides an in-game command line interface. (no work started yet)
+- [api](./api) java bindings for the library. (no work started yet)
 
 ### Dependencies
 
@@ -44,10 +46,10 @@ Some examples; `gradle fabric-1.19.1:runClient`, `gradle fabric-1.20.1:build`, `
 
 If I'm honest with myself, I can only properly support GCC linux.x86_64 -> linux.x86_64.
 That being said, I would like to support as many platforms as possible.
-If you use a different platform I'd love to merge any patches you make suppporting it.
+If you use a different platform I'd love any help you can offer in supporting it.
 
 At the time of writing;
 Any combination of *BSD, Linux, x86_64 and ARM should work perfectly.
-With any luck I've one-shot OSX support perfectly - I've tried to avoid anything not posix.
+With any luck I've one-shot OSX support - I've tried to avoid anything not posix.
 Windows is missing a few platform dependent functions, but ~~shouldn't require rewriting anything I hope~~.
 I've accidentally coupled too closely with methods I didn't realise don't exist in windows - some code needs rewriting by someone on a windows system.

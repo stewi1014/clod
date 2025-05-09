@@ -288,7 +288,7 @@ int anvil_parse_sections_ex(
         return -1;
     }
 
-    if (realloc_f == NULL) realloc_f = realloc;
+    sections->realloc = realloc_f != NULL ? realloc_f : realloc;
 
     char *section_list = NULL, *end;
     int64_t section_min_y = INT64_MIN;
@@ -304,12 +304,12 @@ int anvil_parse_sections_ex(
     int32_t section_count = nbt_list_size(section_list);
 
     if (sections->section == NULL || sections->cap < section_count) {
-        struct anvil_section *new = realloc_f(sections->section, section_count * sizeof(struct anvil_section));
+        struct anvil_section *new = sections->realloc(sections->section, section_count * sizeof(struct anvil_section));
         if (new == NULL) {
             return -1;
         }
 
-        for (int i = sections->cap; i < section_count; i++) {
+        for (int64_t i = sections->cap; i < section_count; i++) {
             new[i].end = NULL;
             new[i].block_state_palette = NULL;
             new[i].block_state_indicies = NULL;
@@ -321,6 +321,14 @@ int anvil_parse_sections_ex(
 
         sections->section = new;
         sections->cap = section_count;
+    }
+
+    for (int64_t i = 0; i < section_count; i++) {
+        sections->section[i].end = NULL;
+        sections->section[i].block_state_palette = NULL;
+        sections->section[i].biome_palette = NULL;
+        sections->section[i].block_light = NULL;
+        sections->section[i].sky_light = NULL;
     }
 
     sections->len = section_count;
@@ -352,8 +360,16 @@ int anvil_parse_sections_ex(
         struct anvil_section *section = &sections->section[y - section_min_y];
 
         sections->section[y - section_min_y].end = section_end;
-        sections->section[y - section_min_y].block_light = block_light;
-        sections->section[y - section_min_y].sky_light = sky_light;
+
+        if (block_light != NULL && nbt_byte_array_size(block_light) == 2048)
+            sections->section[y - section_min_y].block_light = nbt_byte_array(block_light);
+        else
+            sections->section[y - section_min_y].block_light = NULL;
+
+        if (sky_light != NULL && nbt_byte_array_size(sky_light) == 2048)
+            sections->section[y - section_min_y].sky_light = nbt_byte_array(sky_light);
+        else
+            sections->section[y - section_min_y].sky_light = NULL;
 
         nbt_named(biomes, end,
             "palette", strlen("palette"), NBT_LIST, &section->biome_palette,
@@ -374,7 +390,7 @@ int anvil_parse_sections_ex(
             }
 
             if (section->biome_indicies == NULL) {
-                section->biome_indicies = realloc_f(NULL, 4 * 4 * 4 * sizeof(uint16_t));
+                section->biome_indicies = sections->realloc(NULL, 4 * 4 * 4 * sizeof(uint16_t));
                 if (section->biome_indicies == NULL) {
                     return -1;
                 }
@@ -397,7 +413,7 @@ int anvil_parse_sections_ex(
             }
 
             if (section->block_state_indicies == NULL) {
-                section->block_state_indicies = realloc_f(NULL, 16 * 16 * 16 * sizeof(uint16_t));
+                section->block_state_indicies = sections->realloc(NULL, 16 * 16 * 16 * sizeof(uint16_t));
                 if (section->block_state_indicies == NULL) {
                     return -1;
                 }
@@ -421,11 +437,18 @@ int anvil_parse_sections_ex(
 }
 
 
-void anvil_sections_free_ex(
-    struct anvil_sections *sections,
-    void (*free_f)(void*)
+void anvil_sections_free(
+    struct anvil_sections *sections
 ) {
-    free_f(sections->section);
+    for (int64_t i = 0; i < sections->cap; i++) {
+        if (sections->section[i].biome_indicies != NULL)
+            sections->realloc(sections->section[i].biome_indicies, 0);
+
+        if (sections->section[i].block_state_indicies != NULL)
+            sections->realloc(sections->section[i].block_state_indicies, 0);
+    }
+
+    sections->realloc(sections->section, 0);
     sections->cap = 0;
     sections->len = 0;
     sections->section = NULL;

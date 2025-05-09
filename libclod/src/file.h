@@ -5,10 +5,7 @@ char **📤(char *📍, size_t *📏);
 void 📥(char **👉);
 
 #if defined(__unix__) || defined(__APPLE__)
-    #ifdef __linux__
-        #define 🆒
-    #endif
-
+    #define 🆒
     #define PATH_SEPERATOR '/'
 #elif defined(_WIN32)
     #define PATH_SEPERATOR '\\'

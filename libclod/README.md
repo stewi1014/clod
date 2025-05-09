@@ -37,12 +37,13 @@ that slows both you and the program down. The non-goals of this project are note
 
 Methods for reading the anvil world format.
 
-#### Examples
+#### Example: Iterating over all sections in a world
 
 ```C
 
-#include <stdio.h>
+#include <stdlib.h>
 #include <errno.h>
+#include <stdio.h>
 #include <string.h>
 
 #include <anvil.h>
@@ -58,33 +59,31 @@ int main(int argc, char **argv) {
     struct anvil_chunk_ctx *chunk_ctx = anvil_chunk_ctx_alloc(NULL);
     struct anvil_region_iter *iter = anvil_region_iter_new("region", world); // e.g. region, DIM1, DIM-1.
     struct anvil_region region;
+    struct anvil_sections sections = ANVIL_SECTIONS_CLEAR;
+
     int error;
     while (!(error = anvil_region_iter_next(&region, iter))) {
         struct anvil_chunk chunk;
         for (int x = 0; x < 32; x++) for (int z = 0; z < 32; z++) {
             chunk = anvil_chunk_decompress(chunk_ctx, &region, x, z);
-            char *end = chunk.data + chunk.data_size;
             if (chunk.data_size == 0) continue; // files often have empty chunks.
-    
-            // use chunk NBT data...
-            char *status = nbt_named(nbt_payload(chunk.data, NBT_COMPOUND, end), "Status", end);
-            if (status == NULL && nbt_type(status, end) != NBT_STRING) {
+            
+            if (anvil_parse_sections(&sections, chunk)) {
+                printf("ewwor\n");
+                __builtin_trap();
+            }
+
+            for (int i = 0; i < sections.len; i++) {
                 printf(
-                    "region (%d, %d); chunk (%d, %d) is corrupted\n", 
-                    region.region_x,
-                    region.region_z,
-                    chunk.chunk_x,
-                    chunk.chunk_z
-                );
-            } else {
-                printf(
-                    "region (%d, %d), chunk (%d, %d) has status %.*s\n", 
-                    region.region_x,
-                    region.region_z,
-                    chunk.chunk_x,
-                    chunk.chunk_z,
-                    nbt_string_size(nbt_payload(status, NBT_STRING, end)),
-                    nbt_string(nbt_payload(status, NBT_STRING, end))
+                    "region (%d, %d), section(%d, %d, %d), %p %p %p %p %p %p\n", 
+                    region.region_x, region.region_z,
+                    chunk.chunk_x, i + sections.min_y, chunk.chunk_z,
+                    sections.section[i].block_state_palette,
+                    sections.section[i].block_state_indicies,
+                    sections.section[i].biome_palette,
+                    sections.section[i].biome_indicies,
+                    sections.section[i].block_light,
+                    sections.section[i].sky_light
                 );
             }
         }
@@ -97,12 +96,77 @@ int main(int argc, char **argv) {
     
     anvil_chunk_ctx_free(chunk_ctx);
     anvil_region_iter_free(iter);
+    anvil_sections_free(&sections);
     anvil_close(world);
 }
 
 ```
 
 ### [dh.h](./include/dh.h)
+
+Methods for dealing with DH LODs
+
+#### Example: Generate DH LODs for entire minecraft world
+
+```C
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <errno.h>
+
+#include <anvil.h>
+#include <dh.h>
+
+int main(int argc, char **argv) {
+    struct anvil_world *world = anvil_open("world");
+    if (world == NULL) {
+        printf("open world: %s\n", strerror(errno));
+        return -1;
+    }
+    
+    struct anvil_chunk_ctx *chunk_ctx[16];
+    for (int xi = 0; xi < 4; xi++) for (int zi = 0; zi < 4; zi++) {
+        chunk_ctx[xi * 4 + zi] = anvil_chunk_ctx_alloc(NULL);
+    }
+
+    struct anvil_region_iter *iter = anvil_region_iter_new("region", world);
+    struct anvil_region region;
+    struct anvil_chunk chunks[16];
+    struct dh_lod lod = DH_LOD_CLEAR;
+
+    int error;
+    while (!(error = anvil_region_iter_next(&region, iter))) {
+        for (int x = 0; x < 32; x += 4) for (int z = 0; z < 32; z += 4) {
+            for (int xi = 0; xi < 4; xi++) for (int zi = 0; zi < 4; zi++)
+                chunks[xi * 4 + zi] = anvil_chunk_decompress(chunk_ctx[xi * 4 + zi], &region, x + xi, z + zi);
+
+            dh_result result = dh_from_chunks(chunks, &lod);
+            if (result != DH_OK) {
+                printf("failed to create LOD for pos %d, %d\n", x, z);
+                continue;
+            }
+
+            // do something with LOD...
+        }        
+    }
+    if (error < 0) {
+        printf("%s\n", strerror(errno));
+        return -1;
+    }
+    
+    for (int xi = 0; xi < 4; xi++) for (int zi = 0; zi < 4; zi++) {
+        anvil_chunk_ctx_free(chunk_ctx[xi * 4 + zi]);
+    }
+
+    dh_lod_free(&lod);
+    anvil_region_iter_free(iter);
+    anvil_close(world);
+
+    return 0;
+}
+
+```
 
 ### [lod.h](./include/lod.h)
 
@@ -124,62 +188,44 @@ It is cumbersome to use, and it's easy to write users of it that accidentally st
 So, if you're going to use it, make sure you're aware of how the NBT format works and
 note that even if you know how the NBT format works, this library will still be a pain to use.
 
-#### Examples
-
-##### Finding a specific tag with comprehensive error checking
+#### Example: Get chunk status
 
 ```C
 
-char *chunk_data = ...
-char *end = chunk_data + chunk_length;
+#include <stdio.h>
+#include <errno.h>
+#include <assert.h>
+#include <stdlib.h>
+#include <string.h>
 
-char *status = nbt_named(nbt_payload(chunk_data, NBT_COMPOUND, end), "Status", end)
-if (status == NULL) {
-    printf("corrupted NBT data.\n");
-} else if (nbt_type(status, end) == NBT_END) {
-    printf("no tag with name 'Status' found.\n");
-} else if (nbt_type(status, end) != NBT_STRING) {
+#include <nbt.h>
+
+int main(int argc, char **argv) {
+    FILE *f = fopen("chunk_data.nbt", "rb");
+    if (f == NULL) {
+        printf("%s\n", strerror(errno));
+        return -1;
+    }
+
+    char *chunk_data = malloc(60628);
+    char *end = chunk_data+60628;
+    assert(fread(chunk_data, 60628, 1, f) == 1);
+    fclose(f);
+
+    assert(nbt_step(chunk_data, end) == end);
+
+    char *status = nbt_payload(chunk_data, NBT_COMPOUND, end);
+    while(strncmp(nbt_name(status, end), "Status", nbt_name_size(status, end)))
+        status = nbt_step(status, end);
+
     printf(
-        "tag with name 'Status' exists, but is of type %s. Expected NBT_STRING\n", 
-        nbt_type_as_string(nbt_type(status, end))
+            "Status: %.*s\n", 
+            nbt_string_size(nbt_payload(status, NBT_STRING, end)),
+            nbt_string(nbt_payload(status, NBT_STRING, end))
     );
-} else {
-    printf(
-        "chunk status: %.*s\n", 
-        nbt_string_size(nbt_payload(status, NBT_STRING, end)),
-        nbt_string(nbt_payload(status, NBT_STRING, end))
-    );
+
+    return 0;
 }
-
-```
-
-##### Iterating over all tags in compound with "couldn't care less" error checking
-
-```C
-
-char *chunk_data = ...
-char *end = chunk_data + chunk_length;
-
-char *tag;
-nbt_compound_foreach(nbt_payload(chunk_data, NBT_COMPOUND, end), end, tag, {
-    printf("%.*s(%s)\n", nbt_name_size(tag, end), nbt_name(tag, end), nbt_type_as_string(nbt_type(tag, end)));
-});
-
-```
-
-##### Iterating over a specific nested tag with "couldn't care less" error checking
-
-```C
-
-char *chunk_data = ...
-char *end = chunk_data + chunk_length;
-
-char *section, *child;
-nbt_list_foreach(nbt_payload(nbt_named(nbt_payload(chunk_data, NBT_COMPOUND, end), "sections", end), NBT_LIST), end, section, 
-    nbt_compound_foreach(nbt_payload(section, NBT_COMPOUND, end), end, child, {
-        printf("%.*s(%s)\n", nbt_name_size(child, end), nbt_name(child, end), nbt_type_as_string(nbt_type(child, end)));
-    })
-);
 
 ```
 

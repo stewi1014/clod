@@ -9,7 +9,7 @@
 #include <dh.h>
 
 int main(int argc, char **argv) {
-    struct anvil_world *world = anvil_open("world");
+    struct anvil_world *world = anvil_open("/home/stewi/minecraft/servers/quilt-1.19.4.old/world");
     if (world == NULL) {
         printf("open world: %s\n", strerror(errno));
         return -1;
@@ -19,20 +19,18 @@ int main(int argc, char **argv) {
     struct timespec decompress_start, decompress_end;
     struct timespec lod_start, lod_end;
     long decompress_ns = 0, nbt_visit_ns = 0, total_ns;
-    size_t size_total = 0, chunk_total = 0;
+    size_t size_total = 0, chunk_total = 0, lod_mem_total = 0, lod_mem_used_total = 0, num_lods = 0;
     timespec_get(&start, TIME_UTC);
     
-    struct anvil_chunk_ctx *chunk_ctx[4][4];
+    struct anvil_chunk_ctx *chunk_ctx[16];
     for (int xi = 0; xi < 4; xi++) for (int zi = 0; zi < 4; zi++) {
-        chunk_ctx[xi][zi] = anvil_chunk_ctx_alloc(NULL);
+        chunk_ctx[xi * 4 + zi] = anvil_chunk_ctx_alloc(NULL);
     }
 
     struct anvil_region_iter *iter = anvil_region_iter_new("region", world);
     struct anvil_region region;
-    struct anvil_chunk chunks[4][4];
-    struct dh_lod *lod = NULL;
-
-    struct dh_lod_stats stats = DH_LOD_STATS_CLEAR;
+    struct anvil_chunk chunks[16];
+    struct dh_lod lod = DH_LOD_CLEAR;
 
     int error;
     while (!(error = anvil_region_iter_next(&region, iter))) {
@@ -42,8 +40,8 @@ int main(int argc, char **argv) {
             timespec_get(&decompress_start, TIME_UTC);
 
             for (int xi = 0; xi < 4; xi++) for (int zi = 0; zi < 4; zi++) {
-                chunks[xi][zi] = anvil_chunk_decompress(chunk_ctx[xi][zi], &region, x + xi, z + zi);
-                size_total += chunks[xi][zi].data_size;
+                chunks[xi * 4 + zi] = anvil_chunk_decompress(chunk_ctx[xi * 4 + zi], &region, x + xi, z + zi);
+                size_total += chunks[xi * 4 + zi].data_size;
                 chunk_total++;
             }
 
@@ -52,15 +50,23 @@ int main(int argc, char **argv) {
             
             timespec_get(&lod_start, TIME_UTC);
 
-                int result = dh_generate_from_chunks(&lod, chunks);
-                assert(result == 0);
+                dh_result result = dh_from_chunks(chunks, &lod);
+                assert(result == DH_OK);
             
             timespec_get(&lod_end, TIME_UTC);
-
-            dh_lod_get_stats(&stats, lod);
     
-            decompress_ns += (decompress_end.tv_sec * 1000000000L + decompress_end.tv_nsec) - (decompress_start.tv_sec * 1000000000L + decompress_start.tv_nsec);
-            nbt_visit_ns += (lod_end.tv_sec * 1000000000L + lod_end.tv_nsec) - (lod_start.tv_sec * 1000000000L + lod_start.tv_nsec);
+
+            decompress_ns += 
+                (decompress_end.tv_sec * 1000000000L + decompress_end.tv_nsec) - 
+                (decompress_start.tv_sec * 1000000000L + decompress_start.tv_nsec);
+
+            nbt_visit_ns += 
+                (lod_end.tv_sec * 1000000000L + lod_end.tv_nsec) -
+                (lod_start.tv_sec * 1000000000L + lod_start.tv_nsec);
+
+            num_lods++;
+            lod_mem_total += lod.lod_cap;
+            lod_mem_used_total += lod.lod_len;
         }        
     }
     if (error < 0) {
@@ -98,19 +104,18 @@ int main(int argc, char **argv) {
     );
 
     printf(
-        "LODs averaged %ldKiB in size, %ldKiB used, %ldKiB unused, %ldKiB metadata, %0.0f%% memory efficiency\n",
-        ((stats.mem_metadata + stats.mem_unused + stats.mem_used) / stats.num_lods) >> 10,
-        (stats.mem_used / stats.num_lods) >> 10,
-        (stats.mem_unused / stats.num_lods) >> 10,
-        (stats.mem_metadata / stats.num_lods) >> 10,
-        (double)stats.mem_used * 100 / (stats.mem_unused + stats.mem_used)
+        "LODs averaged %ldKiB in size, %ldKiB used, %ldKiB unused, %0.0f%% memory efficiency\n",
+        (lod_mem_total / num_lods) >> 10,
+        (lod_mem_used_total / num_lods) >> 10,
+        ((lod_mem_total - lod_mem_used_total) / num_lods) >> 10,
+        (double)lod_mem_used_total * 100 / lod_mem_total
     );
     
     for (int xi = 0; xi < 4; xi++) for (int zi = 0; zi < 4; zi++) {
-        anvil_chunk_ctx_free(chunk_ctx[xi][zi]);
+        anvil_chunk_ctx_free(chunk_ctx[xi * 4 + zi]);
     }
 
-    dh_lod_free(lod);
+    dh_lod_free(&lod);
     anvil_region_iter_free(iter);
     anvil_close(world);
 

@@ -2,7 +2,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#ifdef USE_MMAP
+#include "file.h"
+
+#ifdef 🆒
     #include <unistd.h>
     #include <fcntl.h>
     #include <sys/stat.h>   

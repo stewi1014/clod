@@ -1,435 +1,481 @@
-#include <stdio.h>
-#include <assert.h>
 #include <stdlib.h>
-#include <stdarg.h>
-#include <stdbit.h>
+#include <anvil.h>
+#include <nbt.h>
 
-#include "anvil.h"
-#include "nbt.h"
 #include "dh.h"
 
-/**
- * these two macros define when and by how much columns
- * are grown and shrunk.
- * 
- * COLUMN_SIZE_GROW must always be at least cap + 1,
- * and is used to find the new colum size when it needs to be grown.
- * 
- * COLUMN_SIZE_SHRINK can define a new capacity, if desired,
- * that the column will be shrank to.
- */
+#define LOD_GROW(cap, n) ((cap == 0) ? (n) + 128 * 1024 : (n) + (cap << 1) - (cap >> 1))
+#define LOD_SHRINK(len, cap) ((cap) > (len) * 3 ? (len) : (cap))
 
-#define COLUMN_SIZE_GROW(cap) ((cap == 0) ? 16 : ((cap << 1) - (cap >> 1)))
-#define COLUMN_SIZE_SHRINK(len, cap) ((cap) > 64 + (len)*2 ? (len) : (cap))
+#define DH_DATAPOINT_LIGHT_MASK  (0xFF00000000000000ULL)
+#define DH_DATAPOINT_MIN_Y_MASK  (0x00FFF00000000000ULL)
+#define DH_DATAPOINT_HEIGHT_MASK (0x00000FFF00000000ULL)
+#define DH_DATAPOINT_ID_MASK     (0x00000000FFFFFFFFULL)
 
-int create_id_lookup(
-    uint32_t **id_lookup,
-    unsigned *id_lookup_cap,
-    struct anvil_section section,
-    struct dh_lod *lod,
-    void *(*realloc_f)(void*, size_t),
-    void (*free_f)(void*)
-) {
-    // goodness gracious wall of code.
-    // The *only* thing this does is figure out how to convert from minecarft ids to DH ids.
-    // 
-    // This was rather infuriating to write and I wish I could have avoided this.
-    // But here we are, and there's no two ways around it - the DH format demands this be done.
-    // 
-    // Potential ideas
-    // - split up biome and blockstate information in DH's mapping.
-    // - use minecraft's existing NBT format in favour of custom formats.
-    // - perform id de-duplication on block state and biome data instead of the serialised format.
+#define DH_DATAPOINT_LIGHT_SHIFT  (56)
+#define DH_DATAPOINT_MIN_Y_SHIFT  (44)
+#define DH_DATAPOINT_HEIGHT_SHIFT (32)
+#define DH_DATAPOINT_ID_SHIFT     (00)
 
-    int32_t biomes = section.biome_palette != NULL ? nbt_list_size(section.biome_palette) : 0;
-    int32_t block_states = section.block_state_palette != NULL ? nbt_list_size(section.block_state_palette) : 0;
+struct id_lookup {
+    struct id_table {
+        uint32_t *ids;
+        size_t ids_cap;
+    } *sections;
+    size_t sections_cap;
+};
 
-    if (biomes == 0 || block_states == 0) return 0;
+#define ID_LOOKUP_CLEAR (struct id_lookup){NULL, 0}
 
-    char *temp_string = NULL;
-    unsigned temp_string_size = 0;
 
-    if (*id_lookup_cap <= biomes * block_states) {
-        uint32_t *new_id_lookup = realloc_f(*id_lookup, biomes * block_states * sizeof(uint32_t));
-        if (new_id_lookup == NULL) {
-            free_f(temp_string);
-            return DH_GENERATE_ERROR_ALLOCATE;
-        }
+// this just so happens to be exactly 256 bytes large lol!
+struct dh_lod_ext {
+    char *temp_string;
+    size_t temp_string_cap;
 
-        *id_lookup = new_id_lookup;
-        *id_lookup_cap = biomes * block_states;
+    char **temp_array;
+    size_t temp_array_cap;
+
+    struct anvil_sections sections[4];
+    struct id_lookup id_lookup[4];
+};
+
+int compare_tag_name(const void *tag1, const void *tag2) {
+    size_t size = nbt_name_size((char*)tag1, NULL);
+    if (nbt_name_size((char*)tag2, NULL) < size) {
+        size = nbt_name_size((char*)tag2, NULL);
     }
 
-    char *biome = nbt_list_payload(section.biome_palette);
-    for (int biome_i = 0; biome_i < biomes && biome != NULL; biome_i++) {
-        char *biome_resource = nbt_string(biome);
-        uint16_t biome_resource_size = nbt_string_size(biome);
-
-        int biome_string_size = biome_resource_size + strlen("_DH-BSW_");
-        if (temp_string_size < biome_string_size) {
-            char *new_temp_string = realloc_f(temp_string, biome_string_size);
-            if (new_temp_string == NULL) {
-                free_f(temp_string);
-                return DH_GENERATE_ERROR_ALLOCATE;
-            }
-
-            temp_string = new_temp_string;
-            temp_string_size = biome_string_size;
-        }
-
-        memcpy(temp_string,                       biome_resource, biome_resource_size);
-        memcpy(temp_string + biome_resource_size, "_DH-BSW_",     strlen("_DH-BSW_") );
-
-        char *block_state = nbt_list_payload(section.block_state_palette);
-        for (int block_state_i = 0; block_state_i < block_states && block_state != NULL; block_state_i++) {
-            char *block_state_name = NULL, *block_state_properties = NULL;
-
-            block_state = nbt_named(block_state, section.end,
-                "Name", strlen("Name"), NBT_STRING, &block_state_name,
-                "Properties", strlen("Properties"), NBT_COMPOUND, &block_state_properties,
-                NULL
-            );
-
-            char *block_state_resource = nbt_string(block_state_name);
-            uint16_t block_state_resource_size = nbt_string_size(block_state_name);
-
-            int block_state_string_size = biome_string_size + block_state_resource_size + strlen("_STATE_");
-            if (temp_string_size < block_state_string_size) {
-                char *new_temp_string = realloc_f(temp_string, block_state_string_size + 1);
-                if (new_temp_string == NULL) {
-                    free_f(temp_string);
-                    return DH_GENERATE_ERROR_ALLOCATE;
-                }
-
-                temp_string = new_temp_string;
-                temp_string_size = block_state_string_size;
-            }
-
-            memcpy(temp_string + biome_string_size,                             block_state_resource, block_state_resource_size);
-            memcpy(temp_string + biome_string_size + block_state_resource_size, "_STATE_",            strlen("_STATE_")        );
-
-            // properties are supposed to be sorted alphabetically based on their name,
-            // but I am *SO* done with all this string shit I'm not bothering.
-            // besides, minecraft seems to be sane enough to write these in a determenistic order anyways.
-
-            int properties_string_size = block_state_string_size;
-            while(block_state_properties != NULL && block_state_properties[0] != NBT_END) {
-                char     *block_state_property_name      = nbt_name(block_state_properties, section.end);
-                uint16_t block_state_property_name_size  = nbt_name_size(block_state_properties, section.end);
-                char     *block_state_property_value     = nbt_string(nbt_payload(block_state_properties, NBT_STRING, section.end));
-                uint16_t block_state_property_value_size = nbt_string_size(nbt_payload(block_state_properties, NBT_STRING, section.end));
-
-                int new_properties_string_size = properties_string_size + 3 + block_state_property_name_size + block_state_property_value_size;
-                if (temp_string_size < new_properties_string_size) {
-                    char *new_temp_string = realloc_f(temp_string, new_properties_string_size + 1);
-                    if (new_temp_string == NULL) {
-                        free_f(temp_string);
-                        return DH_GENERATE_ERROR_ALLOCATE;
-                    }
-
-                    temp_string = new_temp_string;
-                    temp_string_size = new_properties_string_size;
-                }
-
-                temp_string[properties_string_size] = '{';
-                properties_string_size += 1;
-
-                memcpy(temp_string + properties_string_size, block_state_property_name, block_state_property_name_size);
-                properties_string_size += block_state_property_name_size;
-
-                temp_string[properties_string_size] = ':';
-                properties_string_size += 1;
-
-                memcpy(temp_string + properties_string_size, block_state_property_value, block_state_property_value_size);
-                properties_string_size += block_state_property_value_size;
-
-                temp_string[properties_string_size] = '}';
-                properties_string_size += 1;
-
-                block_state_properties = nbt_step(block_state_properties, section.end);
-            }
-
-            temp_string[properties_string_size] = '\x0';
-
-
-            uint32_t id = 0;
-            while (id < lod->mapping_len && strcmp(lod->mapping[id], temp_string))
-                id++;
-
-            if (id == lod->mapping_len) {
-                if (lod->mapping_len == lod->mapping_cap) {
-                    unsigned new_mapping_cap = lod->mapping_cap == 0 ? 16 : lod->mapping_cap * 2;
-                    char **new_mapping = realloc_f(lod->mapping, new_mapping_cap * sizeof(char*));
-                    if (new_mapping == NULL) {
-                        free_f(temp_string);
-                        return DH_GENERATE_ERROR_ALLOCATE;
-                    }
-
-                    for (int i = lod->mapping_cap; i < new_mapping_cap; i++) new_mapping[i] = NULL;
-                    lod->mapping = new_mapping;
-                    lod->mapping_cap = new_mapping_cap;
-                }
-
-                char *new = realloc_f(lod->mapping[id], properties_string_size + 1);
-                if (new == NULL) {
-                    free_f(temp_string);
-                    return DH_GENERATE_ERROR_ALLOCATE;
-                }
-                lod->mapping[id] = new;
-                lod->mapping_len++;
-                memcpy(lod->mapping[id], temp_string, properties_string_size + 1);
-            }
-
-            (*id_lookup)[biome_i * block_states + block_state_i] = id;
-            
-        }
-
-        biome = nbt_payload_step(biome, NBT_STRING, section.end);
-    }
-
-    
-    free_f(temp_string);
-    if (biome == NULL) return DH_GENERATE_ERROR_MALFORMED;
-    return 0;
+    int n = strncmp(nbt_name((char*)tag1, NULL), nbt_name((char*)tag2, NULL), size);
+    if (n) return n;
+    if (nbt_name_size((char*)tag1, NULL) > nbt_name_size((char*)tag2, NULL)) return 1;
+    return -1;
 }
 
-int dh_generate_from_chunks_ex(
-    struct dh_lod **lod_ptr,
-    struct anvil_chunk chunks[4][4],
-    void *(*realloc_f)(void*, size_t),
-    void (*free_f)(void*)
+static inline
+void increment_le_uint16_t(char *ptr) {
+    uint16_t value = (uint8_t)ptr[0] | ((uint8_t)ptr[1] << 8);
+    value++;
+    ptr[0] = (char)(value & 0xFF);
+    ptr[1] = (char)((value >> 8) & 0xFF);
+}
+
+/**
+ * general idea here is to accumulate permutations of biome and blockstate/properties,
+ * creating a DH compatable mapping and then updating a minecarft id -> DH id lookup table.
+ * 
+ * this does not need to be super optimised, and given the complexity of this transformation,
+ * readabily is more important here.
+ * 
+ * I would like to see the need for this removed from LODs entirely.
+ * 
+ */
+dh_result add_mappings(
+    struct dh_lod *lod,
+    struct anvil_sections *sections,
+    struct id_lookup *id_table
 ) {
-    struct anvil_sections sections = ANVIL_SECTIONS_CLEAR;
-    struct anvil_chunk chunk;
 
-    if (realloc_f == NULL) realloc_f = realloc;
-    if (free_f == NULL) free_f = free;
+    // C might be a *right* proper pain with strings,
+    // but it does give us macros.
+    //
+    // this macro just helps us easily append to the temporary string,
+    // while checking size, growing if needed and keeping track of offset.
+    // I know it's weird, but a function doing the same thing looked worse IMHO.
+    //
+    // A decent string abstraction would be better.
+    #define append(off, src, src_len) \
+        if (ext->temp_string_cap < (off) + (src_len)) {\
+            char *new = lod->realloc(ext->temp_string, (off) + (src_len));\
+            if (new == NULL) return DH_ERR_ALLOC;\
+            ext->temp_string = new;\
+            ext->temp_string_cap = (off) + (src_len);\
+        }\
+        memcpy(ext->temp_string + (off), (src), (src_len));\
+        (off) += (src_len);
 
-    struct dh_lod *lod = *lod_ptr;
-    if (lod == NULL) {
-        lod = realloc_f(NULL, sizeof(struct dh_lod));
-        if (lod == NULL) {
-            return DH_GENERATE_ERROR_ALLOCATE;
+    
+    struct dh_lod_ext *ext = lod->__ext;
+
+    if (id_table->sections_cap < sections->len) {
+        size_t new_cap = sections->len;
+        struct id_table *new = lod->realloc(id_table->sections, new_cap * sizeof(*id_table->sections));
+        if (new == NULL) {
+            return DH_ERR_ALLOC;
         }
-        
-        lod->mapping = NULL;
-        lod->mapping_len = 0;
-        lod->mapping_cap = 0;
-        for (int x = 0; x < 64; x++) for (int z = 0; z < 64; z++) {
-            lod->column_len[x][z] = 0;
-            lod->column_cap[x][z] = 0;
+
+        for (int64_t i = id_table->sections_cap; i < new_cap; i++) {
+            new[i].ids_cap = 0;
+            new[i].ids = NULL;
         }
 
-        *lod_ptr = lod;
-    } else {
-        for (int x = 0; x < 64; x++) for (int z = 0; z < 64; z++)
-            lod->column_len[x][z] = 0;
+        id_table->sections = new;
+        id_table->sections_cap = new_cap;
+    }
+
+    for (int64_t section_index = 0; section_index < sections->len; section_index++) {
+        struct anvil_section section = sections->section[section_index];
+
+        if (section.biome_palette == NULL || section.block_state_palette == NULL)
+            continue;
+
+        int32_t biomes = nbt_list_size(section.biome_palette);
+        if (biomes > 64 || biomes < 0) {
+            return DH_ERR_MALFORMED;
+        }
+
+        int32_t block_states = nbt_list_size(section.block_state_palette);
+        if (block_states > 4096 || block_states < 0) {
+            return DH_ERR_MALFORMED;
+        }
+
+        if (id_table->sections[section_index].ids_cap < biomes * block_states) {
+            size_t new_cap = biomes * block_states;
+            uint32_t *new = lod->realloc(
+                id_table->sections[section_index].ids, 
+                new_cap * sizeof(*id_table->sections[section_index].ids)
+            );
+
+            if (new == NULL) {
+                return DH_ERR_ALLOC;
+            }
+
+            id_table->sections[section_index].ids = new;
+            id_table->sections[section_index].ids_cap = new_cap;
+        }
+
+        char *biome = nbt_list_payload(section.biome_palette);
+        for (
+            int64_t biome_index = 0;
+            biome_index < biomes;
+            biome = nbt_payload_step(biome, NBT_STRING, section.end), biome_index++
+        ) {
+            size_t biome_string_size = 0;
+            append(biome_string_size, nbt_string(biome), nbt_string_size(biome));
+            append(biome_string_size, "_DH-BSW_", strlen("_DH-BSW_"));
+
+            char *block_state = nbt_list_payload(section.block_state_palette);
+            for (
+                int64_t block_state_index = 0;
+                block_state_index < block_states;
+                block_state = nbt_payload_step(block_state, NBT_COMPOUND, section.end), block_state_index++
+            ) {
+                char *block_state_name = NULL, *block_state_property = NULL;
+                nbt_named(block_state, section.end,
+                    "Name", strlen("Name"), NBT_STRING, &block_state_name,
+                    "Properties", strlen("Properties"), NBT_COMPOUND, &block_state_property,
+                    NULL
+                );
+
+                size_t block_state_string_size = biome_string_size;
+                append(block_state_string_size, nbt_string(block_state_name), nbt_string_size(block_state_name));
+                append(block_state_string_size, "_STATE_", strlen("_STATE_"));
+
+                if (block_state_property != NULL) {
+                    int64_t property_count = 0;
+                    while (block_state_property[0] == NBT_STRING) {
+                        if (ext->temp_array_cap == property_count) {
+                            char **new = lod->realloc(ext->temp_array, (2 * ext->temp_array_cap + 2) * sizeof(char*));
+                            if (new == NULL) {
+                                return DH_ERR_ALLOC;
+                            }
+                            ext->temp_array = new;
+                            ext->temp_array_cap = 2 * ext->temp_array_cap + 2;
+                        }
+
+                        ext->temp_array[property_count] = block_state_property;
+                        block_state_property = nbt_step(block_state_property, section.end);
+                    }
+
+                    // every language has a sort method
+                    // this is C's
+
+                    qsort(ext->temp_array, property_count, sizeof(char*), compare_tag_name);
+
+                    for (
+                        int property_index = 0; 
+                        property_index < property_count; 
+                        block_state_property = nbt_step(block_state_property, section.end), property_index++
+                    ) {
+                        append(block_state_string_size, "{", 1);
+                        append(block_state_string_size, nbt_name(block_state_property, section.end), nbt_name_size  (block_state_property, section.end));
+                        append(block_state_string_size, ":", 1);
+                        append(
+                            block_state_string_size, 
+                            nbt_string(nbt_payload(block_state_property, NBT_STRING, section.end)),
+                            nbt_string_size(nbt_payload(block_state_property, NBT_STRING, section.end))
+                        );
+                        append(block_state_string_size, "}", 1);
+                    }
+                }
+
+                append(block_state_string_size, "\x0", 1);
+
+                uint32_t id = 0;
+                while (id < lod->mapping_len && strcmp(lod->mapping_arr[id], ext->temp_string))
+                    id++;
+
+                if (id == lod->mapping_len) {
+                    if (lod->mapping_len == lod->mapping_cap) {
+                        size_t new_cap = lod->mapping_cap == 0 ? 16 : lod->mapping_cap * 2;
+                        char **new = lod->realloc(lod->mapping_arr, new_cap * sizeof(char*));
+                        if (new == NULL) {
+                            return DH_ERR_ALLOC;
+                        }
+                        for (int64_t i = lod->mapping_cap; i < new_cap; i++) new[i] = NULL;
+                        lod->mapping_arr = new;
+                        lod->mapping_cap = new_cap;
+                    }
+                    
+                    char *new = lod->realloc(lod->mapping_arr[id], block_state_string_size);
+                    if (new == NULL) {
+                        return DH_ERR_ALLOC;
+                    }
+
+                    strcpy(new, ext->temp_string);
+                    lod->mapping_arr[id] = new;
+                    lod->mapping_len++;
+                }
+
+                id_table->sections[section_index].ids[biome_index * nbt_list_size(section.block_state_palette) + block_state_index] = id;
+            }
+        }
+    }
+
+    #undef append
+
+    return DH_OK;
+}
+
+dh_result dh_from_chunks(
+    struct anvil_chunk *chunks,  // 4x4 array of chunks.
+    struct dh_lod *lod          // destination LOD.
+) {
+    struct dh_lod_ext *ext;
+    dh_result result;
+    char *cursor;
+    int error;
+
+    if (chunks == NULL || lod == NULL) return DH_ERR_INVALID_ARGUMENT;
+    if (lod->realloc == NULL) lod->realloc = realloc;
+
+    #define ensure_buffer(n) ({\
+        if (lod->lod_cap < lod->lod_len + (n)) {\
+            size_t new_cap = LOD_GROW(lod->lod_cap, n);\
+            char *new = lod->realloc(lod->lod_arr, new_cap);\
+            if (new == NULL) {\
+                return DH_ERR_ALLOC;\
+            }\
+            lod->lod_arr = new;\
+            lod->lod_cap = new_cap;\
+        }\
+    })
+
+    ext = lod->__ext;
+    if (ext == NULL) {
+        ext = lod->realloc(NULL, sizeof(struct dh_lod_ext));
+        if (ext == NULL) {
+            return DH_ERR_ALLOC;
+        }
+
+        ext->temp_string = NULL;
+        ext->temp_string_cap = 0;
+
+        ext->temp_array = NULL;
+        ext->temp_array_cap = 0;
+
+        for (int64_t i = 0; i < 4; i++) {
+            ext->sections[i] = ANVIL_SECTIONS_CLEAR;
+            ext->id_lookup[i] = ID_LOOKUP_CLEAR;
+        }
+
+        lod->__ext = ext;
     }
 
     lod->mapping_len = 0;
-    unsigned id_lookup_cap = 0;
-    uint32_t *id_lookup = NULL;
-    
-    for (int chunk_x = 0; chunk_x < 4; chunk_x++) for (int chunk_z = 0; chunk_z < 4; chunk_z++) {
+    lod->lod_len = 0;
+    lod->detail_level = 0;
+    cursor = lod->lod_arr;
 
-        chunk = chunks[chunk_x][chunk_z];
+    for (int64_t chunk_x = 0; chunk_x < 4; chunk_x++) {
 
-        int error = anvil_parse_sections_ex(&sections, chunk, realloc_f);
-        if (error) {
-            free_f(id_lookup);
-            anvil_sections_free_ex(&sections, free_f);
-            return error;
-        }
-
-        for (int section_index = 0; section_index < sections.len; section_index++) {
-            struct anvil_section section = sections.section[section_index];
-
-            int32_t biomes = section.biome_palette != NULL ? nbt_list_size(section.biome_palette) : 0;
-            int32_t block_states = section.block_state_palette != NULL ? nbt_list_size(section.block_state_palette) : 0;
-
-            if (biomes == 0 || block_states == 0) continue;
-
-            int error = create_id_lookup(
-                &id_lookup,
-                &id_lookup_cap,
-                section,
-                lod,
-                realloc_f,
-                free_f
+        for (int64_t chunk_z = 0; chunk_z < 4; chunk_z++) {
+            error = anvil_parse_sections_ex(
+                &ext->sections[chunk_z],
+                chunks[chunk_x * 4 + chunk_z],
+                lod->realloc
             );
 
             if (error) {
-                free_f(id_lookup);
-                anvil_sections_free_ex(&sections, free_f);
-                return error;
+                return DH_ERR_MALFORMED;
             }
 
-            for (int block_x = 0; block_x < 16; block_x++) for (int block_z = 0; block_z < 16; block_z++) {
-                uint16_t len = lod->column_len[block_x + chunk_x * 16][block_z + chunk_z * 16];
-                uint16_t cap = lod->column_cap[block_x + chunk_x * 16][block_z + chunk_z * 16];
-                dh_datapoint *column = cap == 0 ? NULL : lod->column[block_x + chunk_x * 16][block_z + chunk_z * 16];
-                assert(len <= cap);
+            result = add_mappings(
+                lod,
+                &ext->sections[chunk_z],
+                &ext->id_lookup[chunk_z]
+            );
+
+            if (result != DH_OK) {
+                return result;
+            }
+        }
+
+        for (int64_t block_x = 0; block_x < 16; block_x++)
+        for (int64_t chunk_z = 0; chunk_z < 4; chunk_z++) {
+
+            struct anvil_sections *sections = &ext->sections[chunk_z];
+            struct id_lookup *id_lookup = &ext->id_lookup[chunk_z];
+
+            for (int64_t block_z = 0; block_z < 16; block_z++) {
+
+                uint64_t last_datapoint = (sections->len * 16) << DH_DATAPOINT_MIN_Y_SHIFT;
+
+                ensure_buffer(2 + 8);
+                size_t column_len_off = lod->lod_len;
+                cursor = lod->lod_arr + lod->lod_len;
+                cursor[0] = 0;
+                cursor[1] = 0;
+                lod->lod_len += 2;
+
+                for (int64_t section_index = sections->len - 1; section_index >= 0; section_index--){
+                    struct anvil_section *section = &sections->section[section_index];
+
+                    if (section->biome_palette == NULL || section->block_state_palette == NULL)
+                        continue;
+
+                    uint32_t *id_table = id_lookup->sections[section_index].ids;
+
+                    int32_t biome_count = nbt_list_size(section->biome_palette);
+                    int32_t block_state_count = nbt_list_size(section->block_state_palette);
+
+                    for (int64_t block_y = 15; block_y >= 0; block_y--){
+
+                        unsigned biome = 0;
+                        if (biome_count > 1) 
+                            biome = section->biome_indicies[(block_x / 4) * 4 * 4 + (block_z / 4) * 4 + (block_y / 4)];
+
+                        unsigned block_state = 0;
+                        if (block_state_count > 1)
+                            block_state = section->block_state_indicies[block_x * 16 * 16 + block_z * 16 + block_y];
+
+                        assert(biome < biome_count);
+                        assert(block_state < block_state_count);
+
+                        uint32_t id = id_table[biome * block_state_count + block_state];
+
+                        uint16_t light = 0;
+                        if (section->block_light != NULL)
+                            light |= section->block_light[(block_x * 16 * 16 + block_z * 16 + block_y) / 2] >> ((block_y & 1) * 4);
+    
+                        if (section->sky_light != NULL)
+                            light |= section->sky_light[(block_x * 16 * 16 + block_z * 16 + block_y) / 2] >> (~(block_y & 1) * 4);
                 
-                if (len == 0) {
-                    if (cap == 0) {
-                        uint16_t new_cap = COLUMN_SIZE_GROW(cap);
-                        dh_datapoint *new_column = realloc_f(NULL, sizeof(dh_datapoint) * new_cap);
-                        if (new_column == NULL) {
-                            free_f(id_lookup);
-                            anvil_sections_free_ex(&sections, free_f);
-                            return DH_GENERATE_ERROR_ALLOCATE;
+                        if (
+                            ((last_datapoint & DH_DATAPOINT_ID_MASK) >> DH_DATAPOINT_ID_SHIFT) == id &&
+                            ((last_datapoint & DH_DATAPOINT_LIGHT_MASK) >> DH_DATAPOINT_LIGHT_SHIFT) == light
+                        ) {
+                            last_datapoint += ((uint64_t)1 << DH_DATAPOINT_HEIGHT_SHIFT) + ((uint64_t)-1 << DH_DATAPOINT_MIN_Y_SHIFT);
+                        } else {
+
+                            ensure_buffer(8);
+                            char *cursor = lod->lod_arr + lod->lod_len;
+                            cursor[0] = last_datapoint >> (0 * 8);
+                            cursor[1] = last_datapoint >> (1 * 8);
+                            cursor[2] = last_datapoint >> (2 * 8);
+                            cursor[3] = last_datapoint >> (3 * 8);
+                            cursor[4] = last_datapoint >> (4 * 8);
+                            cursor[5] = last_datapoint >> (5 * 8);
+                            cursor[6] = last_datapoint >> (6 * 8);
+                            cursor[7] = last_datapoint >> (7 * 8);
+
+                            last_datapoint =
+                                (uint64_t)light                           << DH_DATAPOINT_LIGHT_SHIFT  |
+                                (uint64_t)(section_index * 16 + block_y)  << DH_DATAPOINT_MIN_Y_SHIFT  |
+                                (uint64_t)1                               << DH_DATAPOINT_HEIGHT_SHIFT |
+                                (uint64_t)id                              << DH_DATAPOINT_ID_SHIFT     ;
+
+                            lod->lod_len += 8;
+                            increment_le_uint16_t(lod->lod_arr + column_len_off);
                         }
-
-
-                        cap = new_cap;
-                        column = new_column;
-                        lod->column_cap[block_x + chunk_x * 16][block_z + chunk_z * 16] = new_cap;
-                        lod->column[block_x + chunk_x * 16][block_z + chunk_z * 16] = new_column;
-                    }
-
-                    column[0] = 0;
-                    len++;
-                    lod->column_len[block_x + chunk_x * 16][block_z + chunk_z * 16]++;
-                }
-
-                dh_datapoint last_datapoint = column[len - 1];
-                dh_datapoint datapoint = 0;
-
-                uint32_t id;
-                uint16_t biome, block_state;
-                uint8_t block_light, sky_light;
-
-                for (int block_y = 15; block_y >= 0; block_y--) {
-                    int block_index = block_x * 16 * 16 + block_z * 16 + block_y;
-
-                    biome = 0;
-                    if (biomes > 1)
-                        biome = section.biome_indicies[block_y >> 2];
-
-                    block_state = 0;
-                    if (block_states > 1)
-                        block_state = section.block_state_indicies[block_y];
-
-                    id = id_lookup[biome * block_states + block_state];
-
-                    block_light = 0;
-                    if (section.block_light != NULL)
-                        block_light = section.block_light[4 + block_index / 2] >> (block_index % 2 * 4);
-
-                    sky_light = 0;
-                    if (section.sky_light != NULL) 
-                        sky_light = section.sky_light[4 + block_index / 2] >> (block_index % 2 * 4);
-
-                    if (
-                        dh_datapoint_get_id(last_datapoint) == id &&
-                        dh_datapoint_get_blocklight(last_datapoint) == block_light &&
-                        dh_datapoint_get_skylight(last_datapoint) == sky_light
-                    ) {
-                        // merge with previous datapoint
-                        last_datapoint += dh_datapoint_height(1) + dh_datapoint_min_y(-1);
-                    } else {
-                        dh_datapoint_set_id(datapoint, id_lookup[biome * block_states + block_state]);
-                        dh_datapoint_set_blocklight(datapoint, block_light);
-                        dh_datapoint_set_skylight(datapoint, sky_light);
-                        dh_datapoint_set_height(datapoint, 1);
-                        dh_datapoint_set_min_y(datapoint, block_y + section_index * 16);
-
-                        assert(len <= cap);
-                        if (len == cap) {
-                            uint16_t new_cap = COLUMN_SIZE_GROW(cap);
-                            dh_datapoint *new_column = realloc_f(column, new_cap * sizeof(dh_datapoint));
-                            if (new_column == NULL) {
-                                free_f(id_lookup);
-                                anvil_sections_free_ex(&sections, free_f);
-                                return DH_GENERATE_ERROR_ALLOCATE;
-                            }
-
-                            cap = new_cap;
-                            column = new_column;
-                            lod->column_cap[block_x + chunk_x * 16][block_z + chunk_z * 16] = new_cap;
-                            lod->column[block_x + chunk_x * 16][block_z + chunk_z * 16] = new_column;
-                        }
-
-                        column[len - 1] = last_datapoint;
-                        last_datapoint = datapoint;
-                     
-                        len++;
-                        lod->column_len[block_x + chunk_x * 16][block_z + chunk_z * 16]++;
                     }
                 }
 
-                if (COLUMN_SIZE_SHRINK(len, cap) != cap && cap > 0 && section_index == sections.len - 1) {
-                    uint16_t new_cap = COLUMN_SIZE_SHRINK(len, cap);
-                    dh_datapoint *new_column = realloc_f(column, new_cap * sizeof(dh_datapoint));
-                    if (new_column != NULL || new_cap == 0) {
-                        cap = new_cap;
-                        column = new_column;
-                        lod->column_cap[block_x + chunk_x * 16][block_z + chunk_z * 16] = new_cap;
-                        lod->column[block_x + chunk_x * 16][block_z + chunk_z * 16] = new_column;
-                    }
-                }
+                ensure_buffer(8);
+                char *cursor = lod->lod_arr + lod->lod_len;
+                cursor[0] = last_datapoint >> (0 * 8);
+                cursor[1] = last_datapoint >> (1 * 8);
+                cursor[2] = last_datapoint >> (2 * 8);
+                cursor[3] = last_datapoint >> (3 * 8);
+                cursor[4] = last_datapoint >> (4 * 8);
+                cursor[5] = last_datapoint >> (5 * 8);
+                cursor[6] = last_datapoint >> (6 * 8);
+                cursor[7] = last_datapoint >> (7 * 8);
 
-                column[len - 1] = last_datapoint;
+                lod->lod_len += 8;
+                increment_le_uint16_t(lod->lod_arr + column_len_off);
+
             }
         }
     }
 
-    for (int x = 0; x < 64; x++) for (int z = 0; z < 64; z++) {
-        //printf("%d, %d\n", lod->column_len[x][z], lod->column_cap[x][z]);
+    size_t shrink_cap = LOD_SHRINK(lod->lod_len, lod->lod_cap);
+    if (shrink_cap < lod->lod_cap) {
+        char *new = lod->realloc(lod->lod_arr, shrink_cap);
+        // don't really care if shrinking fails.
+        if (new != NULL) {
+            lod->lod_arr = new;
+            lod->lod_cap = shrink_cap;
+        }
     }
 
-    free_f(id_lookup);
-    anvil_sections_free_ex(&sections, free_f);
-
-    return 0;
+    return DH_OK;
 }
 
-int dh_generate_from_lods_ex(
-    struct dh_lod **dh_lod,
-    struct dh_lod *lods[4],
-    void *(*realloc_f)(void*, size_t),
-    void (*free_f)(void*)
+
+dh_result dh_from_lods(
+    struct dh_lod *lods, // 2x2 array of source LODs.
+    struct dh_lod *lod  // destination LOD.
 ) {
-    if (realloc_f == NULL) realloc_f = realloc;
-    if (free_f == NULL) free_f = free;
+    if (lods == NULL || lod == NULL) return DH_ERR_INVALID_ARGUMENT;
+    for (int64_t i = 0; i < 4; i++) if (lods[i].realloc == NULL) lods[i].realloc = realloc;
+    if (lod->realloc == NULL) lod->realloc = realloc;
 
-    return 0;
+    return DH_ERR_ALLOC;
 }
 
-void dh_lod_get_stats(
-    struct dh_lod_stats *stats,
+void dh_lod_free(
     struct dh_lod *lod
 ) {
-    stats->num_lods++;
+    if (lod == NULL) return;
+    if (lod->realloc == NULL) return;
 
-    stats->mem_metadata += sizeof(*lod);
-    stats->mem_metadata += sizeof(char*) * lod->mapping_cap;
-    for (int i = 0; i < lod->mapping_len; i++) if (lod->mapping[i] != NULL) {
-        stats->mem_metadata += strlen(lod->mapping[i]);
+    for (int64_t i = 0; i < lod->mapping_len; i++) lod->realloc(lod->mapping_arr[i], 0);
+    lod->realloc(lod->mapping_arr, 0);
+    lod->mapping_len = 0;
+
+    lod->realloc(lod->lod_arr, 0);
+    lod->lod_len = 0;
+    lod->lod_cap = 0;
+
+    struct dh_lod_ext *ext = lod->__ext;
+    if (ext != NULL) {
+        if (ext->temp_string != NULL) lod->realloc(ext->temp_string, 0);
+        if (ext->temp_array != NULL) lod->realloc(ext->temp_array, 0);
+
+        for (int64_t i = 0; i < 4; i++)
+            anvil_sections_free(&ext->sections[i]);
+        
+        for (int64_t i = 0; i < 4; i++) {
+            if (ext->id_lookup[i].sections != NULL) {
+                for (int64_t j = 0; j < ext->id_lookup->sections_cap; j++) {
+                    lod->realloc(ext->id_lookup[i].sections[j].ids, 0);
+                }
+                lod->realloc(ext->id_lookup[i].sections, 0);
+            }
+        }
     }
-
-    for (int i = lod->mapping_len; i < lod->mapping_cap; i++) if (lod->mapping[i] != NULL) {
-        stats->mem_unused += strlen(lod->mapping[i]);
-    }
-
-    for (int x = 0; x < 64; x++) for (int z = 0; z < 64; z++) {
-        stats->mem_used += sizeof(dh_datapoint) * lod->column_len[x][z];
-        stats->mem_unused += sizeof(dh_datapoint) * (lod->column_cap[x][z] - lod->column_len[x][z]);
-    }
-}
-
-void dh_lod_free_ex(
-    struct dh_lod *dh_lod,
-    void (*free_f)(void*)
-) {
-    if (free_f == NULL) free_f = free;
-
-    for (int x = 0; x < 64; x++) for (int z = 0; z < 64; z++)
-        free_f(dh_lod->column[x][z]);
-
-    for (int i = 0; i < dh_lod->mapping_cap; i++)
-        free_f(dh_lod->mapping[i]);
-
-    free_f(dh_lod->mapping);
-    free_f(dh_lod);
+    
+    lod->__ext = NULL;
+    lod->realloc = NULL;
 }

@@ -140,23 +140,24 @@ struct anvil_chunk anvil_chunk_decompress(
 // Section Reading //
 //=================//
 
-struct anvil_section {              // contains pointers to NBT data for a specific section.
-    char *end;                      // the end of the section's NBT data, and start of next section.
-    char *block_state_palette;      // list NBT payload. list of blocks (compound).
-    uint16_t *block_state_indicies; // 16x16x16 array of block state indicies. inaccurate if block state palette size is <= 1
-    char *biome_palette;            // list NBT payload. list of biomes (string).
-    uint16_t *biome_indicies;       // 4x4x4 array of biome indicies. inaccurate if biome palette size is <= 1
-    char *block_light;              // byte array NBT payload.
-    char *sky_light;                // byte array NBT payload.
+struct anvil_section {                  // contains pointers to NBT data for a specific section.
+    char *end;                          // the end of the section's NBT data, and start of next section.
+    char *block_state_palette;          // list NBT payload. list of blocks (compound).
+    uint16_t *block_state_indicies;     // 16x16x16 array of block state indicies. inaccurate if block state palette size is <= 1
+    char *biome_palette;                // list NBT payload. list of biomes (string).
+    uint16_t *biome_indicies;           // 4x4x4 array of biome indicies. inaccurate if biome palette size is <= 1
+    char *block_light;                  // 2048 byte array
+    char *sky_light;                    // 2048 byte array
 };
 
 struct anvil_sections {
-    struct anvil_section *section; // array of sections.
-    int64_t len;                   // the number of sections in the array.
-    int64_t cap;                   // the size (in sections) of the allocated array.
+    struct anvil_section *section;      // array of sections.
+    int64_t len;                        // the number of sections in the array.
+    int64_t cap;                        // the size (in sections) of the allocated array.
 
-    signed min_y;                   // the lowest section y value. can be added to index to get section Y.
-    char *start;                    // the start of this section's data.
+    signed min_y;                       // the lowest section y value. can be added to index to get section Y.
+    char *start;                        // the start of the first section's data.
+    void *(*realloc)(void*, size_t);    // the method used to allocate section data.
 };
 
 #define ANVIL_SECTIONS_CLEAR (struct anvil_sections){NULL, 0, 0}
@@ -196,15 +197,6 @@ int anvil_parse_sections(
 }
 
 /** releases resources accociated with the sections. */
-void anvil_sections_free_ex(
-    struct anvil_sections *sections,
-    void (*free_f)(void*)
-);
-
-/** releases resources accociated with the sections. */
-static inline
 void anvil_sections_free(
     struct anvil_sections *sections
-) {
-    anvil_sections_free_ex(sections, NULL);
-}
+);
