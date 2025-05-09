@@ -10,6 +10,8 @@
 #include "anvil.h"
 #include "anvil_world.h"
 
+#define CHUNK_BUFFER_GROW(cap, n) 
+
 #define BUFFER_START 100 * 1024
 #define BUFFER_MAX 4 * 1024 * 1024
 
@@ -101,8 +103,8 @@ struct anvil_chunk anvil_chunk_decompress(
     struct anvil_chunk chunk;
     chunk.data = NULL;
     chunk.data_size = 0;
-    chunk.chunk_x = chunk_x;
-    chunk.chunk_z = chunk_z;
+    chunk.chunk_x = region->region_x * 32 + chunk_x;
+    chunk.chunk_z = region->region_z * 32 + chunk_z;
     if (region->data_size == 0) {
         chunk.data = "";
         return chunk;

@@ -4,3 +4,7 @@ build
 .vscode
 run
 build_all_targets.sh
+
+DistantHorizons.sqlite
+DistantHorizons.sqlite-shm
+DistantHorizons.sqlite-wal

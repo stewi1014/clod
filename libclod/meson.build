@@ -10,8 +10,7 @@ libclod_sources = libclod_headers + [
     'src/anvil_world.c',
     'src/anvil_world.h',
     'src/dh_db.c',
-    'src/dh_generate.c',
-    'src/dh_serialise.c',
+    'src/dh_lod.c',
     'src/file.h',
     'src/file.c',
     'src/nbt.c',
@@ -64,14 +63,14 @@ install_headers(libclod_headers)
 
 # tests
 test_cases = [
-    'generate_dh_lods_benchmark',
-    'generate_dh_lods',
+    'dh_generate_and_store_benchmark',
+    'dh_generate_benchmark',
+    'dh_generate_example',
     'open_world',
     'open_zlib_region',
     'parse_nbt',
     'read_chunk_sections_benchmark',
     'read_chunk_sections',
-    'write_dh_database',
 ]
 
 foreach test_case : test_cases

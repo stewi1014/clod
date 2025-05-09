@@ -1,0 +1,169 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <errno.h>
+#include <time.h>
+#include <assert.h>
+
+#include <anvil.h>
+#include <dh.h>
+
+#define ANVIL_WORLD "/home/stewi/Dev/github.com/stewi1014/clod/libclod/test/world"
+#define DH_DATABASE "DistantHorizons.sqlite"
+
+int main(int argc, char **argv) {
+    struct anvil_world *world = anvil_open(ANVIL_WORLD);
+    if (world == NULL) {
+        printf("open world: %s\n", strerror(errno));
+        return -1;
+    }
+
+    remove(DH_DATABASE);
+    struct dh_db *db = dh_db_open(DH_DATABASE);
+    assert(db != NULL);
+
+    struct timespec start, end;
+    struct timespec read_start, read_end;
+    struct timespec decompress_start, decompress_end;
+    struct timespec lod_start, lod_end;
+    struct timespec store_start, store_end;
+
+    long read_ns = 0, decompress_ns = 0, lod_gen_ns = 0, store_ns = 0, total_ns;
+    size_t read_nbytes = 0, decompress_nbytes = 0, lod_allocated_nbytes = 0, lod_nbytes = 0;
+    size_t num_regions = 0, num_chunks = 0, num_lods = 0;
+    timespec_get(&start, TIME_UTC);
+    
+    struct anvil_chunk_ctx *chunk_ctx[16];
+    for (int xi = 0; xi < 4; xi++) for (int zi = 0; zi < 4; zi++) {
+        chunk_ctx[xi * 4 + zi] = anvil_chunk_ctx_alloc(NULL);
+    }
+
+    struct anvil_region_iter *iter = anvil_region_iter_new("region", world);
+    struct anvil_region region;
+    struct anvil_chunk chunks[16];
+    struct dh_lod lod = DH_LOD_CLEAR;
+
+    int error;
+    timespec_get(&read_start, TIME_UTC);
+    while (!(error = anvil_region_iter_next(&region, iter))) {
+        //printf("(%d, %d) ", region.region_x, region.region_z);
+
+        timespec_get(&read_end, TIME_UTC);
+
+        num_regions++;
+        read_nbytes += region.data_size;
+        read_ns += 
+            (read_end.tv_sec * 1000000000L + read_end.tv_nsec) - 
+            (read_start.tv_sec * 1000000000L + read_start.tv_nsec);
+
+        for (int x = 0; x < 32; x += 4) for (int z = 0; z < 32; z += 4) {
+            timespec_get(&decompress_start, TIME_UTC);
+
+            for (int xi = 0; xi < 4; xi++) for (int zi = 0; zi < 4; zi++) {
+                chunks[xi * 4 + zi] = anvil_chunk_decompress(chunk_ctx[xi * 4 + zi], &region, x + xi, z + zi);
+                decompress_nbytes += chunks[xi * 4 + zi].data_size;
+                num_chunks++;
+            }
+
+            timespec_get(&decompress_end, TIME_UTC);
+            
+            
+            timespec_get(&lod_start, TIME_UTC);
+
+                dh_result result = dh_from_chunks(chunks, &lod);
+                assert(result == DH_OK);
+            
+            timespec_get(&lod_end, TIME_UTC);
+
+            timespec_get(&store_start, TIME_UTC);
+
+                dh_db_store(db, &lod);
+
+            timespec_get(&store_end, TIME_UTC);
+
+
+            decompress_ns += 
+                (decompress_end.tv_sec * 1000000000L + decompress_end.tv_nsec) - 
+                (decompress_start.tv_sec * 1000000000L + decompress_start.tv_nsec);
+
+            lod_gen_ns += 
+                (lod_end.tv_sec * 1000000000L + lod_end.tv_nsec) -
+                (lod_start.tv_sec * 1000000000L + lod_start.tv_nsec);
+
+            store_ns += 
+                (store_end.tv_sec * 1000000000L + store_end.tv_nsec) -
+                (store_start.tv_sec * 1000000000L + store_start.tv_nsec);
+
+            num_lods++;
+            lod_allocated_nbytes += lod.lod_cap;
+            lod_nbytes += lod.lod_len;
+        }
+        
+        timespec_get(&read_start, TIME_UTC);
+    }
+    if (error < 0) {
+        printf("%s\n", strerror(errno));
+        return -1;
+    }
+
+    timespec_get(&end, TIME_UTC);
+
+    total_ns = 
+        (end.tv_sec * 1000000000L + end.tv_nsec) -
+        (start.tv_sec * 1000000000L + start.tv_nsec);
+
+    printf(
+        "read         %8.1fMB of world data from %7ld regions in %9.1fms (%6.3fms/region), %7.3fMB/s overall, %9.3fMB/s while active, %8.3f regions/second overall\n",
+        (double)read_nbytes / 1000000.0,
+        num_regions,
+        (double)read_ns / 1000000.0,
+        (double)read_ns / (1000000.0 * num_regions),
+        (double)read_nbytes * 1000 / total_ns,
+        (double)read_nbytes * 1000 / read_ns,
+        ((double)num_regions * 1000000000.0) / total_ns
+    );
+
+    printf(
+        "decompressed %8.1fMB of chunk data from %7ld chunks in  %9.1fms (%6.3fms/chunk),  %7.3fMB/s overall, %9.3fMB/s while active, %8.3f chunks/second overall\n",
+        (double)decompress_nbytes / 1000000.0,
+        num_chunks,
+        (double)decompress_ns / 1000000.0,
+        (double)decompress_ns / (1000000.0 * num_chunks),
+        (double)decompress_nbytes * 1000 / total_ns,
+        (double)decompress_nbytes * 1000 / decompress_ns,
+        ((double)num_chunks * 1000000000.0) / total_ns
+    );
+
+    printf(
+        "generated    %8.1fMB of LOD data in     %7ld LODs in    %9.1fms (%6.3fms/LOD),    %7.3fMB/s overall, %9.3fMB/s while active, %8.3f LODs/second overall\n",
+        (double)lod_nbytes / 1000000.0,
+        num_lods,
+        (double)lod_gen_ns / 1000000.0,
+        (double)lod_gen_ns / (1000000.0 * num_lods),
+        (double)lod_nbytes * 1000 / total_ns,
+        (double)lod_nbytes * 1000 / lod_gen_ns,
+        ((double)num_lods * 1000000000.0) / total_ns
+    );
+
+    printf(
+        "stored       %8.1fMB of LOD data from   %7ld LODs in    %9.1fms (%6.3fms/LOD),    %7.3fMB/s overall, %9.3fMB/s while active, %8.3f LODs/second overall\n",
+        (double)lod_nbytes / 1000000.0,
+        num_lods,
+        (double)store_ns / 1000000.0,
+        (double)store_ns / (1000000.0 * num_lods),
+        (double)lod_nbytes * 1000 / total_ns,
+        (double)lod_nbytes * 1000 / store_ns,
+        ((double)num_lods * 1000000000.0) / total_ns
+    );
+    
+    for (int xi = 0; xi < 4; xi++) for (int zi = 0; zi < 4; zi++) {
+        anvil_chunk_ctx_free(chunk_ctx[xi * 4 + zi]);
+    }
+
+    dh_db_close(db);
+    dh_lod_free(&lod);
+    anvil_region_iter_free(iter);
+    anvil_close(world);
+
+    return 0;
+}

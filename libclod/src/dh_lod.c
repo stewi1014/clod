@@ -5,7 +5,7 @@
 #include "dh.h"
 
 #define LOD_GROW(cap, n) ((cap == 0) ? (n) + 128 * 1024 : (n) + (cap << 1) - (cap >> 1))
-#define LOD_SHRINK(len, cap) ((cap) > (len) * 3 ? (len) : (cap))
+#define LOD_SHRINK(len, cap) ((cap) > (len) * 3 && (len) > (cap>>4) ? (len) : (cap))
 
 #define DH_DATAPOINT_LIGHT_MASK  (0xFF00000000000000ULL)
 #define DH_DATAPOINT_MIN_Y_MASK  (0x00FFF00000000000ULL)
@@ -35,6 +35,9 @@ struct dh_lod_ext {
 
     char **temp_array;
     size_t temp_array_cap;
+
+    char *temp_buffer;
+    size_t temp_buffer_cap;
 
     struct anvil_sections sections[4];
     struct id_lookup id_lookup[4];
@@ -284,6 +287,9 @@ dh_result dh_from_chunks(
         ext->temp_array = NULL;
         ext->temp_array_cap = 0;
 
+        ext->temp_buffer = NULL;
+        ext->temp_buffer_cap = 0;
+
         for (int64_t i = 0; i < 4; i++) {
             ext->sections[i] = ANVIL_SECTIONS_CLEAR;
             ext->id_lookup[i] = ID_LOOKUP_CLEAR;
@@ -295,6 +301,9 @@ dh_result dh_from_chunks(
     lod->mapping_len = 0;
     lod->lod_len = 0;
     lod->detail_level = 0;
+    lod->x = chunks->chunk_x / 4;
+    lod->z = chunks->chunk_z / 4;
+
     cursor = lod->lod_arr;
 
     for (int64_t chunk_x = 0; chunk_x < 4; chunk_x++) {
@@ -319,6 +328,12 @@ dh_result dh_from_chunks(
             if (result != DH_OK) {
                 return result;
             }
+        }
+
+        if (chunk_x == 0) {
+            lod->min_y = ext->sections->min_y * 16;
+        } else if (lod->min_y != ext->sections->min_y * 16) {
+            return DH_ERR_MALFORMED;
         }
 
         for (int64_t block_x = 0; block_x < 16; block_x++)
@@ -380,14 +395,14 @@ dh_result dh_from_chunks(
 
                             ensure_buffer(8);
                             char *cursor = lod->lod_arr + lod->lod_len;
-                            cursor[0] = last_datapoint >> (0 * 8);
-                            cursor[1] = last_datapoint >> (1 * 8);
-                            cursor[2] = last_datapoint >> (2 * 8);
-                            cursor[3] = last_datapoint >> (3 * 8);
-                            cursor[4] = last_datapoint >> (4 * 8);
-                            cursor[5] = last_datapoint >> (5 * 8);
-                            cursor[6] = last_datapoint >> (6 * 8);
-                            cursor[7] = last_datapoint >> (7 * 8);
+                            cursor[0] = (last_datapoint >> (0 * 8)) & 0xFF;
+                            cursor[1] = (last_datapoint >> (1 * 8)) & 0xFF;
+                            cursor[2] = (last_datapoint >> (2 * 8)) & 0xFF;
+                            cursor[3] = (last_datapoint >> (3 * 8)) & 0xFF;
+                            cursor[4] = (last_datapoint >> (4 * 8)) & 0xFF;
+                            cursor[5] = (last_datapoint >> (5 * 8)) & 0xFF;
+                            cursor[6] = (last_datapoint >> (6 * 8)) & 0xFF;
+                            cursor[7] = (last_datapoint >> (7 * 8)) & 0xFF;
 
                             last_datapoint =
                                 (uint64_t)light                           << DH_DATAPOINT_LIGHT_SHIFT  |
@@ -403,14 +418,14 @@ dh_result dh_from_chunks(
 
                 ensure_buffer(8);
                 char *cursor = lod->lod_arr + lod->lod_len;
-                cursor[0] = last_datapoint >> (0 * 8);
-                cursor[1] = last_datapoint >> (1 * 8);
-                cursor[2] = last_datapoint >> (2 * 8);
-                cursor[3] = last_datapoint >> (3 * 8);
-                cursor[4] = last_datapoint >> (4 * 8);
-                cursor[5] = last_datapoint >> (5 * 8);
-                cursor[6] = last_datapoint >> (6 * 8);
-                cursor[7] = last_datapoint >> (7 * 8);
+                cursor[0] = (last_datapoint >> (0 * 8)) & 0xFF;
+                cursor[1] = (last_datapoint >> (1 * 8)) & 0xFF;
+                cursor[2] = (last_datapoint >> (2 * 8)) & 0xFF;
+                cursor[3] = (last_datapoint >> (3 * 8)) & 0xFF;
+                cursor[4] = (last_datapoint >> (4 * 8)) & 0xFF;
+                cursor[5] = (last_datapoint >> (5 * 8)) & 0xFF;
+                cursor[6] = (last_datapoint >> (6 * 8)) & 0xFF;
+                cursor[7] = (last_datapoint >> (7 * 8)) & 0xFF;
 
                 lod->lod_len += 8;
                 increment_le_uint16_t(lod->lod_arr + column_len_off);
@@ -429,9 +444,10 @@ dh_result dh_from_chunks(
         }
     }
 
+    #undef ensure_buffer
+
     return DH_OK;
 }
-
 
 dh_result dh_from_lods(
     struct dh_lod *lods, // 2x2 array of source LODs.
@@ -442,6 +458,46 @@ dh_result dh_from_lods(
     if (lod->realloc == NULL) lod->realloc = realloc;
 
     return DH_ERR_ALLOC;
+}
+
+char *dh_lod_serialise_mapping(
+    struct dh_lod *lod,
+    size_t *nbytes
+) {
+    struct dh_lod_ext *ext = lod->__ext;
+    *nbytes = 0;
+
+    #define ensure_buffer(n) \
+        if (ext->temp_buffer_cap < (n) + (*nbytes)) {\
+            size_t new_cap = (n) + ext->temp_buffer_cap * 2;\
+            char *new = lod->realloc(ext->temp_buffer, new_cap);\
+            if (new == NULL) {\
+                return NULL;\
+            }\
+            ext->temp_buffer_cap = new_cap;\
+            ext->temp_buffer = new;\
+        }\
+
+    ensure_buffer(2);
+    ext->temp_buffer[(*nbytes)++] = (lod->mapping_len >> 0) & 0xFF;
+    ext->temp_buffer[(*nbytes)++] = (lod->mapping_len >> 8) & 0xFF;
+    
+    for (int64_t i = 0; i < lod->mapping_len; i++) {
+        size_t size = strlen(lod->mapping_arr[i]);
+        if (size > UINT16_MAX) {
+            return NULL;
+        }
+
+        ensure_buffer(2 + size);
+        ext->temp_buffer[(*nbytes)++] = (size >> 0) & 0xFF;
+        ext->temp_buffer[(*nbytes)++] = (size >> 8) & 0xFF;
+        memcpy(&ext->temp_buffer[*nbytes], lod->mapping_arr[i], size);
+        *nbytes += size;
+    }
+
+    #undef ensure_buffer
+    
+    return ext->temp_buffer;
 }
 
 void dh_lod_free(
@@ -462,6 +518,7 @@ void dh_lod_free(
     if (ext != NULL) {
         if (ext->temp_string != NULL) lod->realloc(ext->temp_string, 0);
         if (ext->temp_array != NULL) lod->realloc(ext->temp_array, 0);
+        if (ext->temp_buffer != NULL) lod->realloc(ext->temp_buffer, 0);
 
         for (int64_t i = 0; i < 4; i++)
             anvil_sections_free(&ext->sections[i]);

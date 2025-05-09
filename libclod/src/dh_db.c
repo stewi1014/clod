@@ -147,55 +147,55 @@ struct dh_db *dh_db_open(char *path) {
         { sqlite3_close(db->db); free(db); return NULL; }
 
     MIGRATION(
-        "sqlScripts/0010_sqlite_createInitialDataTables.sql",
+        "sqlScripts/0010-sqlite-createInitialDataTables.sql",
         __0010_sqlite_createInitialDataTables_sql,
         __0010_sqlite_createInitialDataTables_sql_len
     );
 
     MIGRATION(
-        "sqlScripts/0020_sqlite_createFullDataSourceV2Tables.sql",
+        "sqlScripts/0020-sqlite-createFullDataSourceV2Tables.sql",
         __0020_sqlite_createFullDataSourceV2Tables_sql,
         __0020_sqlite_createFullDataSourceV2Tables_sql_len
     );
 
     MIGRATION(
-        "sqlScripts/0030_sqlite_changeTableJournaling.sql",
+        "sqlScripts/0030-sqlite-changeTableJournaling.sql",
         __0030_sqlite_changeTableJournaling_sql,
         __0030_sqlite_changeTableJournaling_sql_len
     );
 
     MIGRATION(
-        "sqlScripts/0031_sqlite_useSqliteWalJournaling.sql",
+        "sqlScripts/0031-sqlite-useSqliteWalJournaling.sql",
         __0031_sqlite_useSqliteWalJournaling_sql,
         __0031_sqlite_useSqliteWalJournaling_sql_len
     );
 
     MIGRATION(
-        "sqlScripts/0040_sqlite_removeRenderCache.sql",
+        "sqlScripts/0040-sqlite-removeRenderCache.sql",
         __0040_sqlite_removeRenderCache_sql,
         __0040_sqlite_removeRenderCache_sql_len
     );
 
     MIGRATION(
-        "sqlScripts/0050_sqlite_addApplyToParentIndex.sql",
+        "sqlScripts/0050-sqlite-addApplyToParentIndex.sql",
         __0050_sqlite_addApplyToParentIndex_sql,
         __0050_sqlite_addApplyToParentIndex_sql_len
     );
 
     MIGRATION(
-        "sqlScripts/0060_sqlite_createChunkHashTable.sql",
+        "sqlScripts/0060-sqlite-createChunkHashTable.sql",
         __0060_sqlite_createChunkHashTable_sql,
         __0060_sqlite_createChunkHashTable_sql_len
     );
 
     MIGRATION(
-        "sqlScripts/0070_sqlite_createBeaconBeamTable.sql",
+        "sqlScripts/0070-sqlite-createBeaconBeamTable.sql",
         __0070_sqlite_createBeaconBeamTable_sql,
         __0070_sqlite_createBeaconBeamTable_sql_len
     );
 
     MIGRATION(
-        "sqlScripts/0080_sqlite_addApplyToChildrenColumn.sql",
+        "sqlScripts/0080-sqlite-addApplyToChildrenColumn.sql",
         __0080_sqlite_addApplyToChildrenColumn_sql,
         __0080_sqlite_addApplyToChildrenColumn_sql_len
     );
@@ -228,23 +228,70 @@ struct dh_db *dh_db_open(char *path) {
         return NULL;
     }
 
+    err = sqlite3_prepare_v2(db->db, "pragma journal_mode = OFF; PRAGMA synchronous = OFF;", -1, &stmt, NULL);
+    if (err != SQLITE_OK) {
+        fprintf(stderr, "sqlite3_prepate_v2: %s\n", sqlite3_errmsg(db->db));
+        sqlite3_close(db->db);
+        free(db);
+        return NULL;
+    }
+
+    err = sqlite3_step(stmt);
+    if (err != SQLITE_ROW) {
+        fprintf(stderr, "sqlite3_step: %s\n", sqlite3_errmsg(db->db));
+        sqlite3_close(db->db);
+        free(db);
+        return NULL;
+    }
+
+    err = sqlite3_step(stmt);
+    if (err != SQLITE_DONE) {
+        fprintf(stderr, "sqlite3_step: %s\n", sqlite3_errmsg(db->db));
+        sqlite3_close(db->db);
+        free(db);
+        return NULL;
+    }
+
+    sqlite3_finalize(stmt);
+
     return db;
 }
 
 void dh_db_close(struct dh_db *db) {
-    int error;
+    sqlite3_stmt *stmt;
+    int err;
 
     if (db == NULL) return;
 
     if (db->db != NULL){
-        error = sqlite3_finalize(db->store);
-        if (error != SQLITE_OK) {
-            fprintf(stderr, "sqlite3_close: %s\n", sqlite3_errmsg(db->db));
+        err = sqlite3_prepare_v2(db->db, "pragma journal_mode = OFF; PRAGMA synchronous = OFF;", -1, &stmt, NULL);
+        if (err != SQLITE_OK) {
+            fprintf(stderr, "sqlite3_prepate_v2: %s\n", sqlite3_errmsg(db->db));
+        }
+    
+        err = sqlite3_step(stmt);
+        if (err != SQLITE_ROW) {
+            fprintf(stderr, "sqlite3_step: %s\n", sqlite3_errmsg(db->db));
+        }
+
+        err = sqlite3_step(stmt);
+        if (err != SQLITE_DONE) {
+            fprintf(stderr, "sqlite3_step: %s\n", sqlite3_errmsg(db->db));
+        }
+        
+        err = sqlite3_finalize(stmt);
+        if (err != SQLITE_OK) {
+            fprintf(stderr, "sqlite3_finalize: %s\n", sqlite3_errmsg(db->db));
+        }
+
+        err = sqlite3_finalize(db->store);
+        if (err != SQLITE_OK) {
+            fprintf(stderr, "sqlite3_finalize: %s\n", sqlite3_errmsg(db->db));
         }
         db->store = NULL;
 
-        error = sqlite3_close(db->db);
-        if (error != SQLITE_OK) {
+        err = sqlite3_close(db->db);
+        if (err != SQLITE_OK) {
             fprintf(stderr, "sqlite3_close: %s\n", sqlite3_errmsg(db->db));
         }
         db->db = NULL;
@@ -254,29 +301,41 @@ void dh_db_close(struct dh_db *db) {
 
 }
 
+static unsigned char column_generation_step[4096];
+static unsigned char column_world_compression_mode[4096];
+
+__attribute__((constructor))
+void setup_statics() {
+    for (int64_t i = 0; i < 4096; i++) column_generation_step[i] = 9;
+    for (int64_t i = 0; i < 4096; i++) column_world_compression_mode[i] = 0;
+}
+
 int dh_db_store(struct dh_db *db, struct dh_lod *lod) {
     if (db == NULL || lod == NULL) return -1;
 
-    #define CHECK_ERROR(stmt) ({ if ((stmt) != SQLITE_OK) \
+    size_t mapping_len;
+    char *mapping = dh_lod_serialise_mapping(lod, &mapping_len);
+
+    #define check_error(stmt) ({ if ((stmt) != SQLITE_OK) \
         fprintf(stderr, #stmt ": %s\n", sqlite3_errmsg(db->db)); })
 
-    /*
-    CHECK_ERROR(sqlite3_bind_int(db->store, 1, detail_level));
-    CHECK_ERROR(sqlite3_bind_int(db->store, 2, pos_x));
-    CHECK_ERROR(sqlite3_bind_int(db->store, 3, pos_z));
-    CHECK_ERROR(sqlite3_bind_int(db->store, 4, min_y));
-    CHECK_ERROR(sqlite3_bind_int(db->store, 5, data_checksum));
-    CHECK_ERROR(sqlite3_bind_blob(db->store, 6, data, 0, NULL));
-    CHECK_ERROR(sqlite3_bind_blob(db->store, 7, column_generation_step, 0, NULL));
-    CHECK_ERROR(sqlite3_bind_blob(db->store, 8, column_world_compression_mode, 0, NULL));
-    CHECK_ERROR(sqlite3_bind_blob(db->store, 9, mapping, 0, NULL));
-    CHECK_ERROR(sqlite3_bind_int(db->store, 10, data_format_version));
-    CHECK_ERROR(sqlite3_bind_int(db->store, 11, compression_mode));
-    CHECK_ERROR(sqlite3_bind_int(db->store, 12, apply_to_parent));
-    CHECK_ERROR(sqlite3_bind_int(db->store, 13, apply_to_children));
-    CHECK_ERROR(sqlite3_bind_int64(db->store, 14, last_modified_time));
-    CHECK_ERROR(sqlite3_bind_int64(db->store, 15, created_time));
-    */
+    check_error(sqlite3_bind_int(db->store, 1, lod->detail_level));
+    check_error(sqlite3_bind_int(db->store, 2, lod->x));
+    check_error(sqlite3_bind_int(db->store, 3, lod->z));
+    check_error(sqlite3_bind_int(db->store, 4, lod->min_y));
+    check_error(sqlite3_bind_int(db->store, 5, 0)); // wtf is the point of this?
+    check_error(sqlite3_bind_blob(db->store, 6, lod->lod_arr, lod->lod_len, SQLITE_STATIC));
+    check_error(sqlite3_bind_blob(db->store, 7, column_generation_step, 4096, SQLITE_STATIC));
+    check_error(sqlite3_bind_blob(db->store, 8, column_world_compression_mode, 4096, SQLITE_STATIC));
+    check_error(sqlite3_bind_blob(db->store, 9, mapping, mapping_len, SQLITE_STATIC));
+    check_error(sqlite3_bind_int(db->store, 10, 1));
+    check_error(sqlite3_bind_int(db->store, 11, 0)); // TODO; add compression
+    check_error(sqlite3_bind_int(db->store, 12, 0));
+    check_error(sqlite3_bind_int(db->store, 13, 0));
+    check_error(sqlite3_bind_int64(db->store, 14, 0));
+    check_error(sqlite3_bind_int64(db->store, 15, 0));
+
+    #undef check_error
 
     int error;
     error = sqlite3_step(db->store);

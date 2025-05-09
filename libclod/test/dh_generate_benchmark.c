@@ -55,7 +55,6 @@ int main(int argc, char **argv) {
             
             timespec_get(&lod_end, TIME_UTC);
     
-
             decompress_ns += 
                 (decompress_end.tv_sec * 1000000000L + decompress_end.tv_nsec) - 
                 (decompress_start.tv_sec * 1000000000L + decompress_start.tv_nsec);
