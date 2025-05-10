@@ -27,32 +27,36 @@ struct anvil_chunk_ctx {
 
     struct libdeflate_decompressor *libdeflate_decompressor;
 
-    void *(*malloc)(size_t);
     void *(*realloc)(void*, size_t);
-    void (*free)(void*);
 };
+
+thread_local void *(*realloc_wrapped)(void*, size_t);
+
+void *malloc_wrapper(size_t size) {
+    return realloc_wrapped(NULL, size);
+};
+
+void free_wrapper(void *ptr) {
+    realloc_wrapped(ptr, 0);
+}
 
 struct anvil_chunk_ctx *anvil_chunk_ctx_alloc(struct anvil_world *world) {
     struct anvil_chunk_ctx *ctx;
     if (world == NULL) {
         ctx = malloc(sizeof(struct anvil_chunk_ctx));
         if (ctx == NULL) return NULL;
-        ctx->malloc = malloc;
         ctx->realloc = realloc;
-        ctx->free = free;
     } else {
-        ctx = world->malloc(sizeof(struct anvil_chunk_ctx));
+        ctx = world->realloc(NULL, sizeof(struct anvil_chunk_ctx));
         if (ctx == NULL) return NULL;
-        ctx->malloc = world->malloc;
         ctx->realloc = world->realloc;
-        ctx->free = world->free;
     }
 
     ctx->libdeflate_decompressor = NULL;
     ctx->buffer_cap = BUFFER_START;
-    ctx->buffer = ctx->malloc(ctx->buffer_cap);
+    ctx->buffer = ctx->realloc(NULL, ctx->buffer_cap);
     if (ctx->buffer == NULL) {
-        ctx->free(ctx);
+        ctx->realloc(ctx, 0);
         return NULL;
     }
 
@@ -61,14 +65,16 @@ struct anvil_chunk_ctx *anvil_chunk_ctx_alloc(struct anvil_world *world) {
 
 void anvil_chunk_ctx_free(struct anvil_chunk_ctx *ctx) {
     if (ctx->libdeflate_decompressor != NULL) {
+        realloc_wrapped = ctx->realloc;
         libdeflate_free_decompressor(ctx->libdeflate_decompressor);
+        realloc_wrapped = NULL;
     }
 
     if (ctx->buffer != NULL) {
-        ctx->free(ctx->buffer);
+        ctx->realloc(ctx->buffer, 0);
     }
 
-    ctx->free(ctx);
+    ctx->realloc(ctx, 0);
 }
 
 static struct libdeflate_decompressor *chunk_ctx_libdeflate_decompressor(struct anvil_chunk_ctx *ctx) {
@@ -77,10 +83,12 @@ static struct libdeflate_decompressor *chunk_ctx_libdeflate_decompressor(struct 
         memset(&options, 0, sizeof(options));
         options.sizeof_options = sizeof(options);
 
-        options.malloc_func = ctx->malloc;
-        options.free_func = ctx->free;
+        options.malloc_func = malloc_wrapper;
+        options.free_func = free_wrapper;
 
+        realloc_wrapped = ctx->realloc;
         ctx->libdeflate_decompressor = libdeflate_alloc_decompressor_ex(&options);
+        realloc_wrapped = NULL;
     }
     return ctx->libdeflate_decompressor;
 }
@@ -142,6 +150,7 @@ struct anvil_chunk anvil_chunk_decompress(
 
     try_deflate_again:
         if (chunk_data[4] == REGION_COMPRESSION_GZIP) {
+            realloc_wrapped = ctx->realloc;
             result = libdeflate_gzip_decompress(
                 decompressor, 
                 &chunk_data[5], 
@@ -150,7 +159,9 @@ struct anvil_chunk anvil_chunk_decompress(
                 ctx->buffer_cap,
                 &decompressed_size
             );
+            realloc_wrapped = NULL;
         } else if (chunk_data[4] == REGION_COMPRESSION_ZLIB) {
+            realloc_wrapped = ctx->realloc;
             result = libdeflate_zlib_decompress(
                 decompressor, 
                 &chunk_data[5], 
@@ -159,13 +170,14 @@ struct anvil_chunk anvil_chunk_decompress(
                 ctx->buffer_cap,
                 &decompressed_size
             );
+            realloc_wrapped = NULL;
         } else {
             assert(0);
         }
 
         if (result == LIBDEFLATE_INSUFFICIENT_SPACE){
             size_t new_capacity = ctx->buffer_cap * 2;
-            char *new_buffer = realloc(ctx->buffer, new_capacity);
+            char *new_buffer = ctx->realloc(ctx->buffer, new_capacity);
     
             if (new_buffer != NULL) {
                 ctx->buffer = new_buffer;

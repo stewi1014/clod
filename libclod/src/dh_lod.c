@@ -7,15 +7,17 @@
 #define LOD_GROW(cap, n) ((cap == 0) ? (n) + 128 * 1024 : (n) + (cap << 1) - (cap >> 1))
 #define LOD_SHRINK(len, cap) ((cap) > (len) * 3 && (len) > (cap>>4) ? (len) : (cap))
 
-#define DH_DATAPOINT_LIGHT_MASK  (0xFF00000000000000ULL)
-#define DH_DATAPOINT_MIN_Y_MASK  (0x00FFF00000000000ULL)
-#define DH_DATAPOINT_HEIGHT_MASK (0x00000FFF00000000ULL)
-#define DH_DATAPOINT_ID_MASK     (0x00000000FFFFFFFFULL)
+#define DH_DATAPOINT_BLOCK_LIGHT_MASK   (0xF000000000000000ULL)
+#define DH_DATAPOINT_SKY_LIGHT_MASK     (0x0F00000000000000ULL)
+#define DH_DATAPOINT_MIN_Y_MASK         (0x00FFF00000000000ULL)
+#define DH_DATAPOINT_HEIGHT_MASK        (0x00000FFF00000000ULL)
+#define DH_DATAPOINT_ID_MASK            (0x00000000FFFFFFFFULL)
 
-#define DH_DATAPOINT_LIGHT_SHIFT  (56)
-#define DH_DATAPOINT_MIN_Y_SHIFT  (44)
-#define DH_DATAPOINT_HEIGHT_SHIFT (32)
-#define DH_DATAPOINT_ID_SHIFT     (00)
+#define DH_DATAPOINT_BLOCK_LIGHT_SHIFT  (60)
+#define DH_DATAPOINT_SKY_LIGHT_SHIFT    (56)
+#define DH_DATAPOINT_MIN_Y_SHIFT        (44)
+#define DH_DATAPOINT_HEIGHT_SHIFT       (32)
+#define DH_DATAPOINT_ID_SHIFT           (00)
 
 struct id_lookup {
     struct id_table {
@@ -56,11 +58,15 @@ int compare_tag_name(const void *tag1, const void *tag2) {
 }
 
 static inline
-void increment_le_uint16_t(char *ptr) {
-    uint16_t value = (uint8_t)ptr[0] | ((uint8_t)ptr[1] << 8);
+void increment_be_uint16_t(char *ptr) {
+    uint16_t value = 
+        (((uint8_t)ptr[0] << (1 * 8)) & 0xFF) |
+        (((uint8_t)ptr[1] << (0 * 8)) & 0xFF);
+
     value++;
-    ptr[0] = (char)(value & 0xFF);
-    ptr[1] = (char)((value >> 8) & 0xFF);
+
+    ptr[0] = (char)((value >> (1 * 8)) & 0xFF);
+    ptr[1] = (char)((value >> (0 * 8)) & 0xFF);
 }
 
 /**
@@ -301,8 +307,10 @@ dh_result dh_from_chunks(
     lod->mapping_len = 0;
     lod->lod_len = 0;
     lod->detail_level = 0;
+    lod->compression_mode = DH_DATA_COMPRESSION_UNCOMPRESSED;
     lod->x = chunks->chunk_x / 4;
     lod->z = chunks->chunk_z / 4;
+    lod->has_data = false;
 
     cursor = lod->lod_arr;
 
@@ -344,7 +352,9 @@ dh_result dh_from_chunks(
 
             for (int64_t block_z = 0; block_z < 16; block_z++) {
 
-                uint64_t last_datapoint = (sections->len * 16) << DH_DATAPOINT_MIN_Y_SHIFT;
+                uint64_t last_datapoint = 
+                    0xFULL                  << DH_DATAPOINT_SKY_LIGHT_SHIFT |
+                    (sections->len * 16)    << DH_DATAPOINT_MIN_Y_SHIFT     ;
 
                 ensure_buffer(2 + 8);
                 size_t column_len_off = lod->lod_len;
@@ -364,72 +374,88 @@ dh_result dh_from_chunks(
                     int32_t biome_count = nbt_list_size(section->biome_palette);
                     int32_t block_state_count = nbt_list_size(section->block_state_palette);
 
+                    uint8_t last_sky_light = 0xF;
+                    uint8_t sky_light = 0xF;
+
                     for (int64_t block_y = 15; block_y >= 0; block_y--){
+                        int64_t index = block_y * 16 * 16 + block_z * 16 + block_x;
 
                         unsigned biome = 0;
                         if (biome_count > 1) 
-                            biome = section->biome_indicies[(block_x / 4) * 4 * 4 + (block_z / 4) * 4 + (block_y / 4)];
+                            biome = section->biome_indicies[(block_y / 4) * 4 * 4 + (block_z / 4) * 4 + (block_x / 4)];
 
                         unsigned block_state = 0;
                         if (block_state_count > 1)
-                            block_state = section->block_state_indicies[block_x * 16 * 16 + block_z * 16 + block_y];
+                            block_state = section->block_state_indicies[index];
 
                         assert(biome < biome_count);
                         assert(block_state < block_state_count);
 
                         uint32_t id = id_table[biome * block_state_count + block_state];
 
-                        uint16_t light = 0;
-                        if (section->block_light != NULL)
-                            light |= section->block_light[(block_x * 16 * 16 + block_z * 16 + block_y) / 2] >> ((block_y & 1) * 4);
-    
-                        if (section->sky_light != NULL)
-                            light |= section->sky_light[(block_x * 16 * 16 + block_z * 16 + block_y) / 2] >> (~(block_y & 1) * 4);
-                
-                        if (
-                            ((last_datapoint & DH_DATAPOINT_ID_MASK) >> DH_DATAPOINT_ID_SHIFT) == id &&
-                            ((last_datapoint & DH_DATAPOINT_LIGHT_MASK) >> DH_DATAPOINT_LIGHT_SHIFT) == light
-                        ) {
-                            last_datapoint += ((uint64_t)1 << DH_DATAPOINT_HEIGHT_SHIFT) + ((uint64_t)-1 << DH_DATAPOINT_MIN_Y_SHIFT);
-                        } else {
+                        if ((last_datapoint & DH_DATAPOINT_ID_MASK) >> DH_DATAPOINT_ID_SHIFT == id) {
+                            last_datapoint += 
+                                ((uint64_t)1 << DH_DATAPOINT_HEIGHT_SHIFT) + 
+                                ((uint64_t)-1 << DH_DATAPOINT_MIN_Y_SHIFT);
 
-                            ensure_buffer(8);
-                            char *cursor = lod->lod_arr + lod->lod_len;
-                            cursor[0] = (last_datapoint >> (0 * 8)) & 0xFF;
-                            cursor[1] = (last_datapoint >> (1 * 8)) & 0xFF;
-                            cursor[2] = (last_datapoint >> (2 * 8)) & 0xFF;
-                            cursor[3] = (last_datapoint >> (3 * 8)) & 0xFF;
-                            cursor[4] = (last_datapoint >> (4 * 8)) & 0xFF;
-                            cursor[5] = (last_datapoint >> (5 * 8)) & 0xFF;
-                            cursor[6] = (last_datapoint >> (6 * 8)) & 0xFF;
-                            cursor[7] = (last_datapoint >> (7 * 8)) & 0xFF;
-
-                            last_datapoint =
-                                (uint64_t)light                           << DH_DATAPOINT_LIGHT_SHIFT  |
-                                (uint64_t)(section_index * 16 + block_y)  << DH_DATAPOINT_MIN_Y_SHIFT  |
-                                (uint64_t)1                               << DH_DATAPOINT_HEIGHT_SHIFT |
-                                (uint64_t)id                              << DH_DATAPOINT_ID_SHIFT     ;
-
-                            lod->lod_len += 8;
-                            increment_le_uint16_t(lod->lod_arr + column_len_off);
+                            continue;
                         }
+
+                        uint8_t block_light = 0;
+                        if (section->block_light != NULL) {
+                            uint8_t byte = section->block_light[index / 2];
+                            block_light = index & 1 ? byte & 0xF : (byte >> 4) & 0xF;
+                        }
+    
+                        if (section->sky_light != NULL) {
+                            uint8_t byte = section->sky_light[index / 2];
+                            sky_light = index & 1 ? byte & 0xF : (byte >> 4) & 0xF;
+                        }
+
+                        if ((last_datapoint & DH_DATAPOINT_HEIGHT_MASK) >> DH_DATAPOINT_HEIGHT_SHIFT > 0) {
+                            ensure_buffer(8);
+                            lod->has_data = true;
+                            cursor = lod->lod_arr + lod->lod_len;
+                            cursor[0] = (last_datapoint >> (7 * 8)) & 0xFF;
+                            cursor[1] = (last_datapoint >> (6 * 8)) & 0xFF;
+                            cursor[2] = (last_datapoint >> (5 * 8)) & 0xFF;
+                            cursor[3] = (last_datapoint >> (4 * 8)) & 0xFF;
+                            cursor[4] = (last_datapoint >> (3 * 8)) & 0xFF;
+                            cursor[5] = (last_datapoint >> (2 * 8)) & 0xFF;
+                            cursor[6] = (last_datapoint >> (1 * 8)) & 0xFF;
+                            cursor[7] = (last_datapoint >> (0 * 8)) & 0xFF;
+                            lod->lod_len += 8;
+                            increment_be_uint16_t(lod->lod_arr + column_len_off);
+                        }
+
+                        last_datapoint =
+                            (uint64_t)last_sky_light                  << DH_DATAPOINT_SKY_LIGHT_SHIFT   |
+                            (uint64_t)block_light                     << DH_DATAPOINT_BLOCK_LIGHT_SHIFT |
+                            (uint64_t)(section_index * 16 + block_y)  << DH_DATAPOINT_MIN_Y_SHIFT       |
+                            (uint64_t)1                               << DH_DATAPOINT_HEIGHT_SHIFT      |
+                            (uint64_t)id                              << DH_DATAPOINT_ID_SHIFT          ;
+                
+                        last_sky_light = sky_light;
                     }
                 }
 
-                ensure_buffer(8);
-                char *cursor = lod->lod_arr + lod->lod_len;
-                cursor[0] = (last_datapoint >> (0 * 8)) & 0xFF;
-                cursor[1] = (last_datapoint >> (1 * 8)) & 0xFF;
-                cursor[2] = (last_datapoint >> (2 * 8)) & 0xFF;
-                cursor[3] = (last_datapoint >> (3 * 8)) & 0xFF;
-                cursor[4] = (last_datapoint >> (4 * 8)) & 0xFF;
-                cursor[5] = (last_datapoint >> (5 * 8)) & 0xFF;
-                cursor[6] = (last_datapoint >> (6 * 8)) & 0xFF;
-                cursor[7] = (last_datapoint >> (7 * 8)) & 0xFF;
+                if ((last_datapoint & DH_DATAPOINT_HEIGHT_MASK) >> DH_DATAPOINT_HEIGHT_SHIFT > 0) {
 
-                lod->lod_len += 8;
-                increment_le_uint16_t(lod->lod_arr + column_len_off);
+                    ensure_buffer(8);
+                    lod->has_data = true;
+                    cursor = lod->lod_arr + lod->lod_len;
+                    cursor[0] = (last_datapoint >> (7 * 8)) & 0xFF;
+                    cursor[1] = (last_datapoint >> (6 * 8)) & 0xFF;
+                    cursor[2] = (last_datapoint >> (5 * 8)) & 0xFF;
+                    cursor[3] = (last_datapoint >> (4 * 8)) & 0xFF;
+                    cursor[4] = (last_datapoint >> (3 * 8)) & 0xFF;
+                    cursor[5] = (last_datapoint >> (2 * 8)) & 0xFF;
+                    cursor[6] = (last_datapoint >> (1 * 8)) & 0xFF;
+                    cursor[7] = (last_datapoint >> (0 * 8)) & 0xFF;
 
+                    lod->lod_len += 8;
+                    increment_be_uint16_t(lod->lod_arr + column_len_off);
+                }
             }
         }
     }
@@ -478,9 +504,11 @@ char *dh_lod_serialise_mapping(
             ext->temp_buffer = new;\
         }\
 
-    ensure_buffer(2);
-    ext->temp_buffer[(*nbytes)++] = (lod->mapping_len >> 0) & 0xFF;
-    ext->temp_buffer[(*nbytes)++] = (lod->mapping_len >> 8) & 0xFF;
+    ensure_buffer(4);
+    ext->temp_buffer[(*nbytes)++] = (lod->mapping_len >> (3 * 8)) & 0xFF;
+    ext->temp_buffer[(*nbytes)++] = (lod->mapping_len >> (2 * 8)) & 0xFF;
+    ext->temp_buffer[(*nbytes)++] = (lod->mapping_len >> (1 * 8)) & 0xFF;
+    ext->temp_buffer[(*nbytes)++] = (lod->mapping_len >> (0 * 8)) & 0xFF;
     
     for (int64_t i = 0; i < lod->mapping_len; i++) {
         size_t size = strlen(lod->mapping_arr[i]);
@@ -489,8 +517,8 @@ char *dh_lod_serialise_mapping(
         }
 
         ensure_buffer(2 + size);
-        ext->temp_buffer[(*nbytes)++] = (size >> 0) & 0xFF;
-        ext->temp_buffer[(*nbytes)++] = (size >> 8) & 0xFF;
+        ext->temp_buffer[(*nbytes)++] = (size >> (1 * 8)) & 0xFF;
+        ext->temp_buffer[(*nbytes)++] = (size >> (0 * 8)) & 0xFF;
         memcpy(&ext->temp_buffer[*nbytes], lod->mapping_arr[i], size);
         *nbytes += size;
     }
@@ -498,6 +526,14 @@ char *dh_lod_serialise_mapping(
     #undef ensure_buffer
     
     return ext->temp_buffer;
+}
+
+dh_result dh_compress(
+    struct dh_lod *lod,
+    int64_t compression_mode,
+    double level
+) {
+    return DH_OK;
 }
 
 void dh_lod_free(

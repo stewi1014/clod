@@ -18,24 +18,20 @@
 //=======//
 
 struct anvil_world *anvil_open(char *path) {
-    return anvil_open_ex(path, NULL, NULL, NULL, NULL, NULL);
+    return anvil_open_ex(path, NULL, NULL, NULL);
 }
 
 struct anvil_world *anvil_open_ex(
     char *path,
     char **(*open_file_f)(char *path, size_t *size),
     void (*close_file_f)(char **file),
-    void *(*malloc_f)(size_t),
-    void *(*realloc_f)(void*, size_t),
-    void (*free_f)(void*)
+    void *(*realloc_f)(void*, size_t)
 ) {
     if (open_file_f == NULL) open_file_f = 📤;
     if (close_file_f == NULL) close_file_f = 📥;
-    if (malloc_f == NULL) malloc_f = malloc;
     if (realloc_f == NULL) realloc_f = realloc;
-    if (free_f == NULL) free_f = free;
 
-    struct anvil_world *world = malloc_f(sizeof(struct anvil_world));
+    struct anvil_world *world = realloc_f(NULL, sizeof(struct anvil_world));
     if (world == NULL) {
         return NULL;
     }
@@ -44,9 +40,9 @@ struct anvil_world *anvil_open_ex(
     if (path_size >= strlen("level.dat") && !strcmp(path + path_size - strlen("level.dat"), "level.dat")) {
         path_size -= strlen("level.dat");
     }
-    char *world_path = malloc_f(MAX_PATH_LEN);
+    char *world_path = realloc_f(NULL, MAX_PATH_LEN);
     if (world_path == NULL) {
-        free_f(world);
+        realloc_f(world, 0);
         return NULL;
     }
     memcpy(world_path, path, path_size);
@@ -57,21 +53,21 @@ struct anvil_world *anvil_open_ex(
     FILE *session_lock = fopen(world_path, "w");
     world_path[path_size] = '\x0';
     if (session_lock == NULL) {
-        free_f(world_path);
-        free_f(world);
+        realloc_f(world_path, 0);
+        realloc_f(world, 0);
         return NULL;
     }
 
     if (fputs("☃", session_lock) < 0) {
         fclose(session_lock);
-        free_f(world_path);
-        free_f(world);
+        realloc_f(world_path, 0);
+        realloc_f(world, 0);
         return NULL;
     }
     if (fflush(session_lock)) {
         fclose(session_lock);
-        free_f(world_path);
-        free_f(world);
+        realloc_f(world_path, 0);
+        realloc_f(world, 0);
         return NULL;
     }
 
@@ -81,8 +77,8 @@ struct anvil_world *anvil_open_ex(
             // hmmmm
             // I have half a mind to ignore this - but I won't.
             fclose(session_lock);
-            free_f(world_path);
-            free_f(world);
+            realloc_f(world_path, 0);
+            realloc_f(world, 0);
             return NULL;
         }
     #endif
@@ -90,15 +86,13 @@ struct anvil_world *anvil_open_ex(
     world->path = world_path;
     world->open_file = open_file_f;
     world->close_file = close_file_f;
-    world->malloc = malloc_f;
     world->realloc = realloc_f;
-    world->free = free_f;
     return world;
 }
 
 void anvil_close(struct anvil_world *world) {
-    world->free(world->path);
-    world->free(world);
+    world->realloc(world->path, 0);
+    world->realloc(world, 0);
 }
 
 
@@ -130,18 +124,18 @@ struct anvil_region_iter {
     char **previous_file;
     char **(*open_file)(char *path, size_t *size);
     void (*close_file)(char **file);
-    void (*free)(void*);
+    void *(*realloc)(void*, size_t);
 };
 
 struct anvil_region_iter *anvil_region_iter_new(char *subdir, struct anvil_world *world) {
     if (world == NULL) return NULL;
 
-    struct anvil_region_iter *iter = world->malloc(sizeof(struct anvil_region_iter));
+    struct anvil_region_iter *iter = world->realloc(NULL, sizeof(struct anvil_region_iter));
     if (iter == NULL) {
         return NULL;
     }
 
-    char *path = world->malloc(MAX_PATH_LEN);
+    char *path = world->realloc(NULL, MAX_PATH_LEN);
     strcpy(path, world->path);
 
     if (subdir != NULL) {
@@ -153,7 +147,7 @@ struct anvil_region_iter *anvil_region_iter_new(char *subdir, struct anvil_world
     DIR *dir = opendir(path);
 
     if (dir == NULL) {
-        world->free(iter);
+        world->realloc(iter, 0);
         return NULL;
     }
 
@@ -162,7 +156,7 @@ struct anvil_region_iter *anvil_region_iter_new(char *subdir, struct anvil_world
     iter->previous_file = NULL;
     iter->open_file = world->open_file;
     iter->close_file = world->close_file;
-    iter->free = world->free;
+    iter->realloc = world->realloc;
     return iter;
 }
 
@@ -228,6 +222,6 @@ void anvil_region_iter_free(struct anvil_region_iter *iter) {
     }
 
     closedir(iter->dir);
-    iter->free(iter->path);
-    iter->free(iter);
+    iter->realloc(iter->path, 0);
+    iter->realloc(iter, 0);
 }

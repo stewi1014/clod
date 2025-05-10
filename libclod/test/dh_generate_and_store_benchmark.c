@@ -8,7 +8,7 @@
 #include <anvil.h>
 #include <dh.h>
 
-#define ANVIL_WORLD "/home/stewi/Dev/github.com/stewi1014/clod/libclod/test/world"
+#define ANVIL_WORLD "/home/stewi/.local/share/PrismLauncher/instances/1.21.5(1)/minecraft/saves/New World"
 #define DH_DATABASE "DistantHorizons.sqlite"
 
 int main(int argc, char **argv) {
@@ -29,8 +29,8 @@ int main(int argc, char **argv) {
     struct timespec store_start, store_end;
 
     long read_ns = 0, decompress_ns = 0, lod_gen_ns = 0, store_ns = 0, total_ns;
-    size_t read_nbytes = 0, decompress_nbytes = 0, lod_allocated_nbytes = 0, lod_nbytes = 0;
-    size_t num_regions = 0, num_chunks = 0, num_lods = 0;
+    size_t read_nbytes = 0, decompress_nbytes = 0, lod_allocated_nbytes = 0, lod_nbytes = 0, store_nbytes = 0;
+    size_t num_regions = 0, num_chunks = 0, num_lods = 0, num_store = 0;
     timespec_get(&start, TIME_UTC);
     
     struct anvil_chunk_ctx *chunk_ctx[16];
@@ -66,37 +66,42 @@ int main(int argc, char **argv) {
             }
 
             timespec_get(&decompress_end, TIME_UTC);
+
+            decompress_ns += 
+                (decompress_end.tv_sec * 1000000000L + decompress_end.tv_nsec) - 
+                (decompress_start.tv_sec * 1000000000L + decompress_start.tv_nsec);
             
             
             timespec_get(&lod_start, TIME_UTC);
 
                 dh_result result = dh_from_chunks(chunks, &lod);
                 assert(result == DH_OK);
+
+                lod_nbytes += lod.lod_len;
+                lod_allocated_nbytes += lod.lod_cap;
+                num_lods++;
             
             timespec_get(&lod_end, TIME_UTC);
-
-            timespec_get(&store_start, TIME_UTC);
-
-                dh_db_store(db, &lod);
-
-            timespec_get(&store_end, TIME_UTC);
-
-
-            decompress_ns += 
-                (decompress_end.tv_sec * 1000000000L + decompress_end.tv_nsec) - 
-                (decompress_start.tv_sec * 1000000000L + decompress_start.tv_nsec);
 
             lod_gen_ns += 
                 (lod_end.tv_sec * 1000000000L + lod_end.tv_nsec) -
                 (lod_start.tv_sec * 1000000000L + lod_start.tv_nsec);
 
+
+            timespec_get(&store_start, TIME_UTC);
+
+            if (lod.has_data) {
+                dh_db_store(db, &lod);
+            
+                store_nbytes += lod.lod_len;
+                num_store++;
+            }
+
+            timespec_get(&store_end, TIME_UTC);
+
             store_ns += 
                 (store_end.tv_sec * 1000000000L + store_end.tv_nsec) -
                 (store_start.tv_sec * 1000000000L + store_start.tv_nsec);
-
-            num_lods++;
-            lod_allocated_nbytes += lod.lod_cap;
-            lod_nbytes += lod.lod_len;
         }
         
         timespec_get(&read_start, TIME_UTC);
@@ -147,13 +152,13 @@ int main(int argc, char **argv) {
 
     printf(
         "stored       %8.1fMB of LOD data from   %7ld LODs in    %9.1fms (%6.3fms/LOD),    %7.3fMB/s overall, %9.3fMB/s while active, %8.3f LODs/second overall\n",
-        (double)lod_nbytes / 1000000.0,
-        num_lods,
+        (double)store_nbytes / 1000000.0,
+        num_store,
         (double)store_ns / 1000000.0,
-        (double)store_ns / (1000000.0 * num_lods),
-        (double)lod_nbytes * 1000 / total_ns,
-        (double)lod_nbytes * 1000 / store_ns,
-        ((double)num_lods * 1000000000.0) / total_ns
+        (double)store_ns / (1000000.0 * num_store),
+        (double)store_nbytes * 1000 / total_ns,
+        (double)store_nbytes * 1000 / store_ns,
+        ((double)num_store * 1000000000.0) / total_ns
     );
     
     for (int xi = 0; xi < 4; xi++) for (int zi = 0; zi < 4; zi++) {

@@ -42,19 +42,13 @@ struct anvil_world *anvil_open(char *path);
  * close_file is called when the file is no longer needed.
  * it is always given the nonnull return value of read_file.
  * 
- * malloc_f must behave like the malloc function.
- * 
  * realloc_f must behave like the realloc function.
- * 
- * free_f *surprise* must behave like the free function.
  */
 struct anvil_world *anvil_open_ex(
     char *path,
     char **(*open_file)(char *path, size_t *size),
     void (*close_file)(char **file),
-    void *(*malloc_f)(size_t),
-    void *(*realloc_f)(void*, size_t),
-    void (*free_f)(void*)
+    void *(*realloc_f)(void*, size_t)
 );
 
 /**
