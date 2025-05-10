@@ -57,7 +57,7 @@ int main(int argc, char **argv) {
     }
 
     struct anvil_chunk_ctx *chunk_ctx = anvil_chunk_ctx_alloc(NULL);
-    struct anvil_region_iter *iter = anvil_region_iter_new("region", world); // e.g. region, DIM1, DIM-1.
+    struct anvil_region_iter *iter = anvil_region_iter_new("region", world); // directory with region files, e.g. 'region' 'DIM-1', 'DIM1'.
     struct anvil_region region;
     struct anvil_sections sections = ANVIL_SECTIONS_CLEAR;
 

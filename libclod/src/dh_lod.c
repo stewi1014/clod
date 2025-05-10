@@ -11,6 +11,7 @@
 #define DH_DATAPOINT_MIN_Y_MASK  (0x00FFF00000000000ULL)
 #define DH_DATAPOINT_HEIGHT_MASK (0x00000FFF00000000ULL)
 #define DH_DATAPOINT_ID_MASK     (0x00000000FFFFFFFFULL)
+#define abcd                     (0x0018000000000000)
 
 #define DH_DATAPOINT_LIGHT_SHIFT  (56)
 #define DH_DATAPOINT_MIN_Y_SHIFT  (44)
@@ -56,11 +57,15 @@ int compare_tag_name(const void *tag1, const void *tag2) {
 }
 
 static inline
-void increment_le_uint16_t(char *ptr) {
-    uint16_t value = (uint8_t)ptr[0] | ((uint8_t)ptr[1] << 8);
+void increment_be_uint16_t(char *ptr) {
+    uint16_t value = 
+        (((uint8_t)ptr[0] << 8) & 0xFF) |
+        (((uint8_t)ptr[1] << 0) & 0xFF);
+
     value++;
-    ptr[0] = (char)(value & 0xFF);
-    ptr[1] = (char)((value >> 8) & 0xFF);
+
+    ptr[0] = (char)((value >> 8) & 0xFF);
+    ptr[1] = (char)((value >> 0) & 0xFF);
 }
 
 /**
@@ -395,14 +400,14 @@ dh_result dh_from_chunks(
 
                             ensure_buffer(8);
                             char *cursor = lod->lod_arr + lod->lod_len;
-                            cursor[0] = (last_datapoint >> (0 * 8)) & 0xFF;
-                            cursor[1] = (last_datapoint >> (1 * 8)) & 0xFF;
-                            cursor[2] = (last_datapoint >> (2 * 8)) & 0xFF;
-                            cursor[3] = (last_datapoint >> (3 * 8)) & 0xFF;
-                            cursor[4] = (last_datapoint >> (4 * 8)) & 0xFF;
-                            cursor[5] = (last_datapoint >> (5 * 8)) & 0xFF;
-                            cursor[6] = (last_datapoint >> (6 * 8)) & 0xFF;
-                            cursor[7] = (last_datapoint >> (7 * 8)) & 0xFF;
+                            cursor[0] = (last_datapoint >> (7 * 8)) & 0xFF;
+                            cursor[1] = (last_datapoint >> (6 * 8)) & 0xFF;
+                            cursor[2] = (last_datapoint >> (5 * 8)) & 0xFF;
+                            cursor[3] = (last_datapoint >> (4 * 8)) & 0xFF;
+                            cursor[4] = (last_datapoint >> (3 * 8)) & 0xFF;
+                            cursor[5] = (last_datapoint >> (2 * 8)) & 0xFF;
+                            cursor[6] = (last_datapoint >> (1 * 8)) & 0xFF;
+                            cursor[7] = (last_datapoint >> (0 * 8)) & 0xFF;
 
                             last_datapoint =
                                 (uint64_t)light                           << DH_DATAPOINT_LIGHT_SHIFT  |
@@ -411,25 +416,27 @@ dh_result dh_from_chunks(
                                 (uint64_t)id                              << DH_DATAPOINT_ID_SHIFT     ;
 
                             lod->lod_len += 8;
-                            increment_le_uint16_t(lod->lod_arr + column_len_off);
+                            increment_be_uint16_t(lod->lod_arr + column_len_off);
                         }
                     }
                 }
 
-                ensure_buffer(8);
-                char *cursor = lod->lod_arr + lod->lod_len;
-                cursor[0] = (last_datapoint >> (0 * 8)) & 0xFF;
-                cursor[1] = (last_datapoint >> (1 * 8)) & 0xFF;
-                cursor[2] = (last_datapoint >> (2 * 8)) & 0xFF;
-                cursor[3] = (last_datapoint >> (3 * 8)) & 0xFF;
-                cursor[4] = (last_datapoint >> (4 * 8)) & 0xFF;
-                cursor[5] = (last_datapoint >> (5 * 8)) & 0xFF;
-                cursor[6] = (last_datapoint >> (6 * 8)) & 0xFF;
-                cursor[7] = (last_datapoint >> (7 * 8)) & 0xFF;
+                if ((last_datapoint & DH_DATAPOINT_HEIGHT_MASK) >> DH_DATAPOINT_HEIGHT_SHIFT > 0) {
 
-                lod->lod_len += 8;
-                increment_le_uint16_t(lod->lod_arr + column_len_off);
+                    ensure_buffer(8);
+                    char *cursor = lod->lod_arr + lod->lod_len;
+                    cursor[0] = (last_datapoint >> (7 * 8)) & 0xFF;
+                    cursor[1] = (last_datapoint >> (6 * 8)) & 0xFF;
+                    cursor[2] = (last_datapoint >> (5 * 8)) & 0xFF;
+                    cursor[3] = (last_datapoint >> (4 * 8)) & 0xFF;
+                    cursor[4] = (last_datapoint >> (3 * 8)) & 0xFF;
+                    cursor[5] = (last_datapoint >> (2 * 8)) & 0xFF;
+                    cursor[6] = (last_datapoint >> (1 * 8)) & 0xFF;
+                    cursor[7] = (last_datapoint >> (0 * 8)) & 0xFF;
 
+                    lod->lod_len += 8;
+                    increment_be_uint16_t(lod->lod_arr + column_len_off);
+                }
             }
         }
     }
