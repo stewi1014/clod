@@ -30,9 +30,9 @@ int main(int argc, char **argv) {
                 __builtin_trap();
             }
 
-            for (int i = 0; i < sections.len; i++) {
+            for (int64_t i = 0; i < sections.len; i++) {
                 printf(
-                    "region (%d, %d), section(%d, %d, %d), %p %p %p %p %p %p\n", 
+                    "region (%ld, %ld), section(%ld, %ld, %ld), %p %p %p %p %p %p\n", 
                     region.region_x, region.region_z,
                     chunk.chunk_x, i + sections.min_y, chunk.chunk_z,
                     sections.section[i].block_state_palette,

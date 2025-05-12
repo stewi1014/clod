@@ -1,3 +1,4 @@
+#include <stdbool.h>
 #include <stdlib.h>
 
 #include <anvil.h>
@@ -6,8 +7,8 @@
 #include "compress.h"
 #include "dh.h"
 
-#define LOD_GROW(cap, n) ((cap == 0) ? (n) + 128 * 1024 : (n) + (cap << 1) - (cap >> 1))
-#define LOD_SHRINK(len, cap) ((cap) > (len) * 10 && (len) > (cap>>4) ? (len) : (cap))
+#define LOD_GROW(cap, n) ((n) + (cap << 1) - (cap >> 1))
+#define LOD_SHRINK(len, cap) ((cap))
 
 #define DH_DATAPOINT_BLOCK_LIGHT_MASK   (0xF000000000000000ULL)
 #define DH_DATAPOINT_SKY_LIGHT_MASK     (0x0F00000000000000ULL)
@@ -21,18 +22,29 @@
 #define DH_DATAPOINT_HEIGHT_SHIFT       (32)
 #define DH_DATAPOINT_ID_SHIFT           (00)
 
+#define DH_DATAPOINT_GET_BLOCK_LIGHT(dp) ((dp & DH_DATAPOINT_BLOCK_LIGHT_MASK ) >> DH_DATAPOINT_BLOCK_LIGHT_SHIFT)
+#define DH_DATAPOINT_GET_SKY_LIGHT(dp)   ((dp & DH_DATAPOINT_SKY_LIGHT_MASK   ) >> DH_DATAPOINT_SKY_LIGHT_SHIFT  )
+#define DH_DATAPOINT_GET_MIN_Y(dp)       ((dp & DH_DATAPOINT_MIN_Y_MASK       ) >> DH_DATAPOINT_MIN_Y_SHIFT      )
+#define DH_DATAPOINT_GET_HEIGHT(dp)      ((dp & DH_DATAPOINT_HEIGHT_MASK      ) >> DH_DATAPOINT_HEIGHT_SHIFT     )
+#define DH_DATAPOINT_GET_ID(dp)          ((dp & DH_DATAPOINT_ID_MASK          ) >> DH_DATAPOINT_ID_SHIFT         )
+
+#define DH_DATAPOINT_SET_BLOCK_LIGHT(dp, v) ((dp &~ DH_DATAPOINT_BLOCK_LIGHT_MASK) | ((((uint64_t)(v)) << DH_DATAPOINT_BLOCK_LIGHT_SHIFT ) & DH_DATAPOINT_BLOCK_LIGHT_MASK))
+#define DH_DATAPOINT_SET_SKY_LIGHT(dp, v)   ((dp &~ DH_DATAPOINT_SKY_LIGHT_MASK  ) | ((((uint64_t)(v)) << DH_DATAPOINT_SKY_LIGHT_SHIFT   ) & DH_DATAPOINT_SKY_LIGHT_MASK  ))
+#define DH_DATAPOINT_SET_MIN_Y(dp, v)       ((dp &~ DH_DATAPOINT_MIN_Y_MASK      ) | ((((uint64_t)(v)) << DH_DATAPOINT_MIN_Y_SHIFT       ) & DH_DATAPOINT_MIN_Y_MASK      ))
+#define DH_DATAPOINT_SET_HEIGHT(dp, v)      ((dp &~ DH_DATAPOINT_HEIGHT_MASK     ) | ((((uint64_t)(v)) << DH_DATAPOINT_HEIGHT_SHIFT      ) & DH_DATAPOINT_HEIGHT_MASK     ))
+#define DH_DATAPOINT_SET_ID(dp, v)          ((dp &~ DH_DATAPOINT_ID_MASK         ) | ((((uint64_t)(v)) << DH_DATAPOINT_ID_SHIFT          ) & DH_DATAPOINT_ID_MASK         ))
+
 struct id_lookup {
     struct id_table {
         uint32_t *ids;
         size_t ids_cap;
+        uint16_t air_block_state;
     } *sections;
     size_t sections_cap;
 };
 
 #define ID_LOOKUP_CLEAR (struct id_lookup){NULL, 0}
 
-
-// this just so happens to be exactly 256 bytes large lol!
 struct dh_lod_ext {
     char *temp_string;
     size_t temp_string_cap;
@@ -188,6 +200,13 @@ dh_result add_mappings(
                 append(block_state_string_size, nbt_string(block_state_name), nbt_string_size(block_state_name));
                 append(block_state_string_size, "_STATE_", strlen("_STATE_"));
 
+                if (
+                    strlen("minecraft:air") == nbt_string_size(block_state_name) &&
+                    !strncmp(nbt_string(block_state_name), "minecraft:air", nbt_string_size(block_state_name))
+                ) {
+                    id_table->sections[section_index].air_block_state = block_state_index;
+                }
+
                 if (block_state_property != NULL) {
                     int64_t property_count = 0;
                     while (block_state_property[0] == NBT_STRING) {
@@ -336,8 +355,6 @@ dh_result dh_from_chunks(
     lod->z = chunks->chunk_z / 4;
     lod->has_data = false;
 
-    cursor = lod->lod_arr;
-
     for (int64_t chunk_x = 0; chunk_x < 4; chunk_x++) {
 
         for (int64_t chunk_z = 0; chunk_z < 4; chunk_z++) {
@@ -376,69 +393,84 @@ dh_result dh_from_chunks(
 
             for (int64_t block_z = 0; block_z < 16; block_z++) {
 
-                uint64_t last_datapoint = 
-                    0xFULL                  << DH_DATAPOINT_SKY_LIGHT_SHIFT |
-                    (sections->len * 16)    << DH_DATAPOINT_MIN_Y_SHIFT     ;
+                ensure_buffer(2 + 8 * sections->len * 16);
 
-                ensure_buffer(2 + 8);
                 size_t column_len_off = lod->lod_len;
                 cursor = lod->lod_arr + lod->lod_len;
                 cursor[0] = 0;
                 cursor[1] = 0;
                 lod->lod_len += 2;
+            
+                if (
+                    sections->status != NULL && (
+                    strlen("minecraft:full") != nbt_string_size(sections->status) ||
+                    0 != strncmp("minecraft:full", nbt_string(sections->status), strlen("minecraft:full"))
+                )) {
+                    continue;
+                }
+            
+                uint64_t last_datapoint = 
+                    0xFULL                  << DH_DATAPOINT_SKY_LIGHT_SHIFT |
+                    (sections->len * 16)    << DH_DATAPOINT_MIN_Y_SHIFT     ;
+        
+                uint64_t this_datapoint = 0;
 
-                uint8_t last_sky_light;
-                uint8_t sky_light = 0xF;
-
+                uint64_t next_datapoint = 
+                    1ULL << DH_DATAPOINT_HEIGHT_SHIFT;
+            
                 for (int64_t section_index = sections->len - 1; section_index >= 0; section_index--){
                     struct anvil_section *section = &sections->section[section_index];
-
+            
                     if (section->biome_palette == NULL || section->block_state_palette == NULL)
                         continue;
-
+            
                     uint32_t *id_table = id_lookup->sections[section_index].ids;
-
+            
                     int32_t biome_count = nbt_list_size(section->biome_palette);
                     int32_t block_state_count = nbt_list_size(section->block_state_palette);
-
+            
                     for (int64_t block_y = 15; block_y >= 0; block_y--){
                         int64_t index = block_y * 16 * 16 + block_z * 16 + block_x;
-
-                        unsigned biome = 0;
+            
+                        int32_t biome = 0;
                         if (biome_count > 1) 
                             biome = section->biome_indicies[(block_y / 4) * 4 * 4 + (block_z / 4) * 4 + (block_x / 4)];
-
-                        unsigned block_state = 0;
+            
+                        int32_t block_state = 0;
                         if (block_state_count > 1)
                             block_state = section->block_state_indicies[index];
-
+            
                         assert(biome < biome_count);
                         assert(block_state < block_state_count);
+            
+                        this_datapoint = next_datapoint;
 
-                        uint32_t id = id_table[biome * block_state_count + block_state];
-
-                        last_sky_light = sky_light;
                         if (section->sky_light != NULL) {
-                            uint8_t byte = section->sky_light[index / 2];
-                            sky_light = index & 1 ? (byte >> 4) & 0xF : byte & 0xF;
+                            next_datapoint = DH_DATAPOINT_SET_SKY_LIGHT(
+                                next_datapoint, 
+                                (section->sky_light[index / 2] >> ((index & 1) * 4)) & 0xF
+                            );
                         }
 
+                        if (section->block_light != NULL) {
+                            next_datapoint = DH_DATAPOINT_SET_BLOCK_LIGHT(
+                                next_datapoint, 
+                                (section->block_light[index / 2] >> ((index & 1) * 4)) & 0xF
+                            );
+                        } else {
+                            next_datapoint = DH_DATAPOINT_SET_BLOCK_LIGHT(next_datapoint, 0);
+                        }
+                        
+                        uint32_t id = id_table[biome * block_state_count + block_state];
                         if ((last_datapoint & DH_DATAPOINT_ID_MASK) >> DH_DATAPOINT_ID_SHIFT == id) {
                             last_datapoint += 
                                 ((uint64_t)1 << DH_DATAPOINT_HEIGHT_SHIFT) + 
                                 ((uint64_t)-1 << DH_DATAPOINT_MIN_Y_SHIFT);
-
+            
                             continue;
                         }
-
-                        uint8_t block_light = 0;
-                        if (section->block_light != NULL) {
-                            uint8_t byte = section->block_light[index / 2];
-                            block_light = index & 1 ? (byte >> 4) & 0xF : byte & 0xF;
-                        }
-    
+            
                         if ((last_datapoint & DH_DATAPOINT_HEIGHT_MASK) >> DH_DATAPOINT_HEIGHT_SHIFT > 0) {
-                            ensure_buffer(8);
                             lod->has_data = true;
                             cursor = lod->lod_arr + lod->lod_len;
                             cursor[0] = (last_datapoint >> (7 * 8)) & 0xFF;
@@ -452,19 +484,15 @@ dh_result dh_from_chunks(
                             lod->lod_len += 8;
                             increment_be_uint16_t(lod->lod_arr + column_len_off);
                         }
-
+            
                         last_datapoint =
-                            (uint64_t)last_sky_light                  << DH_DATAPOINT_SKY_LIGHT_SHIFT   |
-                            (uint64_t)block_light                     << DH_DATAPOINT_BLOCK_LIGHT_SHIFT |
+                            this_datapoint                                                              |
                             (uint64_t)(section_index * 16 + block_y)  << DH_DATAPOINT_MIN_Y_SHIFT       |
-                            (uint64_t)1                               << DH_DATAPOINT_HEIGHT_SHIFT      |
                             (uint64_t)id                              << DH_DATAPOINT_ID_SHIFT          ;
                     }
                 }
-
+            
                 if ((last_datapoint & DH_DATAPOINT_HEIGHT_MASK) >> DH_DATAPOINT_HEIGHT_SHIFT > 0) {
-
-                    ensure_buffer(8);
                     lod->has_data = true;
                     cursor = lod->lod_arr + lod->lod_len;
                     cursor[0] = (last_datapoint >> (7 * 8)) & 0xFF;
@@ -475,10 +503,10 @@ dh_result dh_from_chunks(
                     cursor[5] = (last_datapoint >> (2 * 8)) & 0xFF;
                     cursor[6] = (last_datapoint >> (1 * 8)) & 0xFF;
                     cursor[7] = (last_datapoint >> (0 * 8)) & 0xFF;
-
                     lod->lod_len += 8;
                     increment_be_uint16_t(lod->lod_arr + column_len_off);
                 }
+
             }
         }
     }

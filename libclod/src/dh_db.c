@@ -236,7 +236,7 @@ struct dh_db *dh_db_open(char *path) {
         "ApplyToChildren, "
         "LastModifiedUnixDateTime, "
         "CreatedUnixDateTime"
-        ") values (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)";
+        ") values (?,?,?,?,?,?,?,?,?,?,?,0,0,?,?)";
 
     err = sqlite3_prepare_v2(db->db, store_sql, strlen(store_sql)+1, &db->store, NULL);
     if (err != SQLITE_OK) {
@@ -246,7 +246,7 @@ struct dh_db *dh_db_open(char *path) {
         return NULL;
     }
 
-    err = sqlite3_prepare_v2(db->db, "pragma journal_mode = OFF; PRAGMA synchronous = OFF;", -1, &stmt, NULL);
+    err = sqlite3_prepare_v2(db->db, "pragma journal_mode = OFF; PRAGMA synchronous = OFF; ", -1, &stmt, NULL);
     if (err != SQLITE_OK) {
         fprintf(stderr, "sqlite3_prepate_v2: %s\n", sqlite3_errmsg(db->db));
         sqlite3_close(db->db);
@@ -254,15 +254,9 @@ struct dh_db *dh_db_open(char *path) {
         return NULL;
     }
 
-    err = sqlite3_step(stmt);
-    if (err != SQLITE_ROW) {
-        fprintf(stderr, "sqlite3_step: %s\n", sqlite3_errmsg(db->db));
-        sqlite3_close(db->db);
-        free(db);
-        return NULL;
-    }
-
-    err = sqlite3_step(stmt);
+    do {
+        err = sqlite3_step(stmt);
+    } while (err == SQLITE_ROW);
     if (err != SQLITE_DONE) {
         fprintf(stderr, "sqlite3_step: %s\n", sqlite3_errmsg(db->db));
         sqlite3_close(db->db);
@@ -275,15 +269,6 @@ struct dh_db *dh_db_open(char *path) {
     return db;
 }
 
-static unsigned char column_generation_step[4096];
-static unsigned char column_world_compression_mode[4096];
-
-__attribute__((constructor))
-void setup_statics() {
-    for (int64_t i = 0; i < 4096; i++) column_generation_step[i] = 9;
-    for (int64_t i = 0; i < 4096; i++) column_world_compression_mode[i] = 0;
-}
-
 void dh_db_close(struct dh_db *db) {
     sqlite3_stmt *stmt;
     int err;
@@ -291,17 +276,14 @@ void dh_db_close(struct dh_db *db) {
     if (db == NULL) return;
 
     if (db->db != NULL){
-        err = sqlite3_prepare_v2(db->db, "pragma journal_mode = OFF; PRAGMA synchronous = OFF;", -1, &stmt, NULL);
+        err = sqlite3_prepare_v2(db->db, "pragma journal_mode = WAL; pragma synchronous = NORMAL; ", -1, &stmt, NULL);
         if (err != SQLITE_OK) {
             fprintf(stderr, "sqlite3_prepate_v2: %s\n", sqlite3_errmsg(db->db));
         }
-    
-        err = sqlite3_step(stmt);
-        if (err != SQLITE_ROW) {
-            fprintf(stderr, "sqlite3_step: %s\n", sqlite3_errmsg(db->db));
-        }
 
-        err = sqlite3_step(stmt);
+        do {
+            err = sqlite3_step(stmt);
+        } while (err == SQLITE_ROW);
         if (err != SQLITE_DONE) {
             fprintf(stderr, "sqlite3_step: %s\n", sqlite3_errmsg(db->db));
         }
@@ -365,10 +347,8 @@ int dh_db_store(struct dh_db *db, struct dh_lod *lod) {
     check_error(sqlite3_bind_blob(db->store, 9, mapping, mapping_len, SQLITE_STATIC));
     check_error(sqlite3_bind_int(db->store, 10, 1));
     check_error(sqlite3_bind_int(db->store, 11, lod->compression_mode)); // TODO; add compression
-    check_error(sqlite3_bind_int(db->store, 12, 0));
-    check_error(sqlite3_bind_int(db->store, 13, 0));
-    check_error(sqlite3_bind_int64(db->store, 14, 0));
-    check_error(sqlite3_bind_int64(db->store, 15, 0));
+    check_error(sqlite3_bind_int64(db->store, 12, 0));
+    check_error(sqlite3_bind_int64(db->store, 13, 0));
 
     #undef check_error
 

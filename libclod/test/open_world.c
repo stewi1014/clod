@@ -31,7 +31,7 @@ int main(int argc, char **argv) {
             );
             if (end == NULL || status == NULL) {
                 printf(
-                    "region (%d, %d); chunk (%d, %d) is corrupted\n", 
+                    "region (%ld, %ld); chunk (%ld, %ld) is corrupted\n", 
                     region.region_x,
                     region.region_z,
                     chunk.chunk_x,
@@ -39,7 +39,7 @@ int main(int argc, char **argv) {
                 );
             } else {
                 printf(
-                    "region (%d, %d), chunk (%d, %d) has status %.*s\n", 
+                    "region (%ld, %ld), chunk (%ld, %ld) has status %.*s\n", 
                     region.region_x,
                     region.region_z,
                     chunk.chunk_x,

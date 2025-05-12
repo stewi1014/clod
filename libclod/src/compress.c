@@ -29,7 +29,7 @@ int compress_lz4(
         }
     }
 
-    size_t max_compressed_size = LZ4F_compressBound(in_len, &prefs);
+    size_t max_compressed_size = LZ4F_HEADER_SIZE_MAX + LZ4F_compressBound(in_len, &prefs);
     if (*out_cap < max_compressed_size) {
         char *new = realloc_f(*out, max_compressed_size);
         if (new == NULL) {

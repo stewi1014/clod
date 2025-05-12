@@ -71,7 +71,7 @@ int main(int argc, char **argv) {
             decompress_ns += 
                 (decompress_end.tv_sec * 1000000000L + decompress_end.tv_nsec) - 
                 (decompress_start.tv_sec * 1000000000L + decompress_start.tv_nsec);
-            
+
             // generate LOD
             timespec_get(&lod_start, TIME_UTC);
                 result = dh_from_chunks(chunks, &lod);
@@ -162,12 +162,12 @@ int main(int argc, char **argv) {
     printf(
         "compressed   %8.1fMB of LOD data in     %7ld LODs in    %9.1fms (%6.3fms/LOD),    %7.3fMB/s overall, %9.3fMB/s while active, %8.3f LODs/second overall\n",
         (double)compress_nbytes / 1000000.0,
-        num_lods,
+        num_store,
         (double)compress_ns / 1000000.0,
-        (double)compress_ns / (1000000.0 * num_lods),
+        (double)compress_ns / (1000000.0 * num_store),
         (double)compress_nbytes * 1000 / total_ns,
         (double)compress_nbytes * 1000 / compress_ns,
-        ((double)num_lods * 1000000000.0) / total_ns
+        ((double)num_store * 1000000000.0) / total_ns
     );
 
     printf(

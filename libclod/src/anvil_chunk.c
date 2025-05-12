@@ -102,8 +102,8 @@ static struct libdeflate_decompressor *chunk_ctx_libdeflate_decompressor(struct 
 struct anvil_chunk anvil_chunk_decompress(
     struct anvil_chunk_ctx *ctx,
     struct anvil_region *region,
-    int chunk_x,
-    int chunk_z
+    int64_t chunk_x,
+    int64_t chunk_z
 ) {
     chunk_x &= 31;
     chunk_z &= 31;
@@ -308,7 +308,10 @@ int anvil_parse_sections_ex(
     int64_t section_min_y = INT64_MIN;
     end = nbt_named(nbt_payload(chunk.data, NBT_COMPOUND, chunk.data + chunk.data_size), chunk.data + chunk.data_size,
         "sections", strlen("sections"), NBT_LIST, &section_list,
+        "xPos", strlen("xPos"), NBT_ANY_INTEGER, &sections->x,
         "yPos", strlen("yPos"), NBT_ANY_INTEGER, &section_min_y,
+        "zPos", strlen("zPos"), NBT_ANY_INTEGER, &sections->z,
+        "Status", strlen("Status"), NBT_STRING, &sections->status,
         NULL
     );
 
@@ -360,7 +363,7 @@ int anvil_parse_sections_ex(
         
         int64_t y = INT64_MIN;
 
-        char *section_end = nbt_named(section_tag, end,
+        section_tag = nbt_named(section_tag, end,
             "biomes", strlen("biomes"), NBT_COMPOUND, &biomes,
             "block_states", strlen("block_states"), NBT_COMPOUND, &block_states,
             "BlockLight", strlen("BlockLight"), NBT_BYTE_ARRAY, &block_light,
@@ -368,12 +371,12 @@ int anvil_parse_sections_ex(
             "Y", strlen("Y"), NBT_ANY_INTEGER, &y,
             NULL
         );
-        if (section_end == NULL) return -1;
+        if (section_tag == NULL) return -1;
         if (y < section_min_y || y >= (section_min_y + section_count)) continue;
 
         struct anvil_section *section = &sections->section[y - section_min_y];
 
-        sections->section[y - section_min_y].end = section_end;
+        sections->section[y - section_min_y].end = section_tag;
 
         if (block_light != NULL && nbt_byte_array_size(block_light) == 2048)
             sections->section[y - section_min_y].block_light = nbt_byte_array(block_light);
@@ -443,8 +446,6 @@ int anvil_parse_sections_ex(
                 return -1;
             }
         }
-
-        section_tag = section_end;
     }
 
     return 0;

@@ -104,8 +104,8 @@ void anvil_close(struct anvil_world *world) {
 struct anvil_region anvil_region_new(
     char *data,
     size_t data_size,
-    int region_x,
-    int region_z
+    int64_t region_x,
+    int64_t region_z
 ) {
     assert(data != NULL);
     assert(data_size >= 8192);
@@ -184,7 +184,7 @@ next_region:
         return 1;
     }
 
-    scan_count = sscanf(ent->d_name, "r.%d.%d.mca", &region->region_x, &region->region_z);
+    scan_count = sscanf(ent->d_name, "r.%ld.%ld.mca", &region->region_x, &region->region_z);
     if (scan_count != 2) {
         goto next_region;
     }

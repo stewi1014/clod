@@ -76,15 +76,15 @@ void anvil_close(struct anvil_world *);
 struct anvil_region {
     char *data;
     size_t data_size;
-    int region_x;
-    int region_z;
+    int64_t region_x;
+    int64_t region_z;
 };
 
 struct anvil_region anvil_region_new(
     char *data,
     size_t data_size,
-    int region_x,
-    int region_z
+    int64_t region_x,
+    int64_t region_z
 );
 
 struct anvil_region_iter;
@@ -117,15 +117,15 @@ void anvil_chunk_ctx_free(struct anvil_chunk_ctx *);
 struct anvil_chunk {
     char *data;
     size_t data_size;
-    int chunk_x;
-    int chunk_z;
+    int64_t chunk_x;
+    int64_t chunk_z;
 };
 
 struct anvil_chunk anvil_chunk_decompress(
     struct anvil_chunk_ctx *,
     struct anvil_region *,
-    int chunk_x,
-    int chunk_z
+    int64_t chunk_x,
+    int64_t chunk_z
 );
 
 
@@ -149,7 +149,11 @@ struct anvil_sections {
     int64_t len;                        // the number of sections in the array.
     int64_t cap;                        // the size (in sections) of the allocated array.
 
-    signed min_y;                       // the lowest section y value. can be added to index to get section Y.
+    int64_t x;
+    int64_t z;
+    int64_t min_y;                      // the lowest section y value. can be added to index to get section Y.
+
+    char *status;                       // Chunk Status NBT tag.
     char *start;                        // the start of the first section's data.
     void *(*realloc)(void*, size_t);    // the method used to allocate section data.
 };
