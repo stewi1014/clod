@@ -1,11 +1,13 @@
 #include <stdlib.h>
+
 #include <anvil.h>
 #include <nbt.h>
 
+#include "compress.h"
 #include "dh.h"
 
 #define LOD_GROW(cap, n) ((cap == 0) ? (n) + 128 * 1024 : (n) + (cap << 1) - (cap >> 1))
-#define LOD_SHRINK(len, cap) ((cap) > (len) * 3 && (len) > (cap>>4) ? (len) : (cap))
+#define LOD_SHRINK(len, cap) ((cap) > (len) * 10 && (len) > (cap>>4) ? (len) : (cap))
 
 #define DH_DATAPOINT_BLOCK_LIGHT_MASK   (0xF000000000000000ULL)
 #define DH_DATAPOINT_SKY_LIGHT_MASK     (0x0F00000000000000ULL)
@@ -40,6 +42,12 @@ struct dh_lod_ext {
 
     char *temp_buffer;
     size_t temp_buffer_cap;
+
+    char *big_buffer;
+    size_t big_buffer_cap;
+
+    void *lzma_ctx;
+    void *lz4_ctx;
 
     struct anvil_sections sections[4];
     struct id_lookup id_lookup[4];
@@ -296,12 +304,28 @@ dh_result dh_from_chunks(
         ext->temp_buffer = NULL;
         ext->temp_buffer_cap = 0;
 
+        ext->big_buffer = NULL;
+        ext->big_buffer_cap = 0;
+
+        ext->lzma_ctx = NULL;
+        ext->lz4_ctx = NULL;
+
         for (int64_t i = 0; i < 4; i++) {
             ext->sections[i] = ANVIL_SECTIONS_CLEAR;
             ext->id_lookup[i] = ID_LOOKUP_CLEAR;
         }
 
         lod->__ext = ext;
+    }
+
+    if (ext->big_buffer_cap > lod->lod_cap) {
+        char *tmp = lod->lod_arr;
+        lod->lod_arr = ext->big_buffer;
+        ext->big_buffer = tmp;
+
+        size_t tmp_cap = lod->lod_cap;
+        lod->lod_cap = ext->big_buffer_cap;
+        ext->big_buffer_cap = tmp_cap;
     }
 
     lod->mapping_len = 0;
@@ -363,6 +387,9 @@ dh_result dh_from_chunks(
                 cursor[1] = 0;
                 lod->lod_len += 2;
 
+                uint8_t last_sky_light;
+                uint8_t sky_light = 0xF;
+
                 for (int64_t section_index = sections->len - 1; section_index >= 0; section_index--){
                     struct anvil_section *section = &sections->section[section_index];
 
@@ -373,9 +400,6 @@ dh_result dh_from_chunks(
 
                     int32_t biome_count = nbt_list_size(section->biome_palette);
                     int32_t block_state_count = nbt_list_size(section->block_state_palette);
-
-                    uint8_t last_sky_light = 0xF;
-                    uint8_t sky_light = 0xF;
 
                     for (int64_t block_y = 15; block_y >= 0; block_y--){
                         int64_t index = block_y * 16 * 16 + block_z * 16 + block_x;
@@ -393,6 +417,12 @@ dh_result dh_from_chunks(
 
                         uint32_t id = id_table[biome * block_state_count + block_state];
 
+                        last_sky_light = sky_light;
+                        if (section->sky_light != NULL) {
+                            uint8_t byte = section->sky_light[index / 2];
+                            sky_light = index & 1 ? (byte >> 4) & 0xF : byte & 0xF;
+                        }
+
                         if ((last_datapoint & DH_DATAPOINT_ID_MASK) >> DH_DATAPOINT_ID_SHIFT == id) {
                             last_datapoint += 
                                 ((uint64_t)1 << DH_DATAPOINT_HEIGHT_SHIFT) + 
@@ -404,14 +434,9 @@ dh_result dh_from_chunks(
                         uint8_t block_light = 0;
                         if (section->block_light != NULL) {
                             uint8_t byte = section->block_light[index / 2];
-                            block_light = index & 1 ? byte & 0xF : (byte >> 4) & 0xF;
+                            block_light = index & 1 ? (byte >> 4) & 0xF : byte & 0xF;
                         }
     
-                        if (section->sky_light != NULL) {
-                            uint8_t byte = section->sky_light[index / 2];
-                            sky_light = index & 1 ? byte & 0xF : (byte >> 4) & 0xF;
-                        }
-
                         if ((last_datapoint & DH_DATAPOINT_HEIGHT_MASK) >> DH_DATAPOINT_HEIGHT_SHIFT > 0) {
                             ensure_buffer(8);
                             lod->has_data = true;
@@ -434,8 +459,6 @@ dh_result dh_from_chunks(
                             (uint64_t)(section_index * 16 + block_y)  << DH_DATAPOINT_MIN_Y_SHIFT       |
                             (uint64_t)1                               << DH_DATAPOINT_HEIGHT_SHIFT      |
                             (uint64_t)id                              << DH_DATAPOINT_ID_SHIFT          ;
-                
-                        last_sky_light = sky_light;
                     }
                 }
 
@@ -486,8 +509,9 @@ dh_result dh_from_lods(
     return DH_ERR_ALLOC;
 }
 
-char *dh_lod_serialise_mapping(
+dh_result dh_lod_serialise_mapping(
     struct dh_lod *lod,
+    char **out,
     size_t *nbytes
 ) {
     struct dh_lod_ext *ext = lod->__ext;
@@ -498,7 +522,7 @@ char *dh_lod_serialise_mapping(
             size_t new_cap = (n) + ext->temp_buffer_cap * 2;\
             char *new = lod->realloc(ext->temp_buffer, new_cap);\
             if (new == NULL) {\
-                return NULL;\
+                return DH_ERR_ALLOC;\
             }\
             ext->temp_buffer_cap = new_cap;\
             ext->temp_buffer = new;\
@@ -513,7 +537,7 @@ char *dh_lod_serialise_mapping(
     for (int64_t i = 0; i < lod->mapping_len; i++) {
         size_t size = strlen(lod->mapping_arr[i]);
         if (size > UINT16_MAX) {
-            return NULL;
+            return DH_ERR_MALFORMED;
         }
 
         ensure_buffer(2 + size);
@@ -524,8 +548,67 @@ char *dh_lod_serialise_mapping(
     }
 
     #undef ensure_buffer
-    
-    return ext->temp_buffer;
+
+    switch (lod->compression_mode) {
+    case DH_DATA_COMPRESSION_UNCOMPRESSED: {
+        *out = ext->temp_buffer;
+        return DH_OK;
+    }
+    case DH_DATA_COMPRESSION_LZ4: {
+        int result;
+        size_t compressed_mapping_len;
+
+        result = compress_lz4(
+            &ext->lz4_ctx,
+            ext->temp_buffer,
+            *nbytes,
+            &ext->temp_string,
+            &ext->temp_string_cap,
+            &compressed_mapping_len,
+            lod->realloc
+        );
+
+        if (result != 0) {
+            *nbytes = 0;
+            return DH_ERR_COMPRESS;
+        }
+
+        *out = ext->temp_string;
+        *nbytes = compressed_mapping_len;
+
+        return DH_OK;
+    }
+    case DH_DATA_COMPRESSION_LZMA2: {
+        lzma_ret result;
+        size_t compressed_mapping_len;
+
+        result = compress_lzma(
+            &ext->lzma_ctx,
+            ext->temp_buffer,
+            *nbytes,
+            &ext->temp_string,
+            &ext->temp_string_cap,
+            &compressed_mapping_len,
+            lod->realloc
+        );
+
+        if (result != LZMA_OK && result != LZMA_STREAM_END) {
+            *nbytes = 0;
+            return DH_ERR_COMPRESS;
+        }
+
+        *out = ext->temp_string;
+        *nbytes = compressed_mapping_len;
+
+        return DH_OK;
+    }
+    case DH_DATA_COMPRESSION_ZSTD: {
+        return DH_ERR_UNSUPPORTED;
+    }
+    default: {
+        return DH_ERR_INVALID_ARGUMENT;
+    }
+    }
 }
 
 dh_result dh_compress(
@@ -533,7 +616,130 @@ dh_result dh_compress(
     int64_t compression_mode,
     double level
 ) {
-    return DH_OK;
+    struct dh_lod_ext *ext = lod->__ext;
+
+    if (compression_mode == lod->compression_mode)
+        return DH_OK;
+    
+    char  *decompressed_lod_arr;
+    size_t decompressed_lod_len;
+    size_t decompressed_lod_cap;
+
+    // existing format -> decompressed
+    // this step consumes the data in the LOD,
+    // writing the uncompressed data into the decompressed buffer.
+    // after this step, the LOD's data and mapping is assumed to be invalid.
+    // 
+
+    switch (lod->compression_mode) {
+    case DH_DATA_COMPRESSION_UNCOMPRESSED: {
+        decompressed_lod_arr = lod->lod_arr;
+        decompressed_lod_len = lod->lod_len;
+        decompressed_lod_cap = lod->lod_cap;
+        break;
+    }
+    case DH_DATA_COMPRESSION_LZ4: {
+        return DH_ERR_UNSUPPORTED;
+    }
+    case DH_DATA_COMPRESSION_LZMA2: {
+        return DH_ERR_UNSUPPORTED;
+    }
+    case DH_DATA_COMPRESSION_ZSTD: {
+        return DH_ERR_UNSUPPORTED;
+    }
+    default: {
+        return DH_ERR_INVALID_ARGUMENT;
+    }
+    }
+
+
+    switch (compression_mode) {
+    case DH_DATA_COMPRESSION_UNCOMPRESSED: {
+        lod->lod_arr = decompressed_lod_arr;
+        lod->lod_len = decompressed_lod_len;
+        lod->lod_cap = decompressed_lod_cap;
+
+        lod->compression_mode = DH_DATA_COMPRESSION_UNCOMPRESSED;
+
+        return DH_OK;
+    }
+    case DH_DATA_COMPRESSION_LZ4: {
+        int result;
+        size_t compressed_lod_len;
+
+        result = compress_lz4(
+            &ext->lz4_ctx,
+            decompressed_lod_arr,
+            decompressed_lod_len,
+            &ext->big_buffer,
+            &ext->big_buffer_cap,
+            &compressed_lod_len,
+            lod->realloc
+        );
+
+        if (result != 0) {
+            lod->lod_arr = decompressed_lod_arr;
+            lod->lod_len = decompressed_lod_len;
+            lod->lod_cap = decompressed_lod_cap;
+    
+            lod->compression_mode = DH_DATA_COMPRESSION_UNCOMPRESSED;
+    
+            return DH_ERR_COMPRESS;
+        }
+
+        lod->lod_arr = ext->big_buffer;
+        lod->lod_len = compressed_lod_len;
+        lod->lod_cap = ext->big_buffer_cap;
+
+        ext->big_buffer = decompressed_lod_arr;
+        ext->big_buffer_cap = decompressed_lod_cap;
+
+        lod->compression_mode = DH_DATA_COMPRESSION_LZ4;
+
+        return DH_OK;
+    }
+    case DH_DATA_COMPRESSION_LZMA2: {
+        lzma_ret result;
+        size_t compressed_lod_len;
+
+        result = compress_lzma(
+            &ext->lzma_ctx,
+            decompressed_lod_arr,
+            decompressed_lod_len,
+            &ext->big_buffer,
+            &ext->big_buffer_cap,
+            &compressed_lod_len,
+            lod->realloc
+        );
+
+        if (result != LZMA_OK && result != LZMA_STREAM_END) {
+            lod->lod_arr = decompressed_lod_arr;
+            lod->lod_len = decompressed_lod_len;
+            lod->lod_cap = decompressed_lod_cap;
+    
+            lod->compression_mode = DH_DATA_COMPRESSION_UNCOMPRESSED;
+    
+            return DH_ERR_COMPRESS;
+        }
+
+        lod->lod_arr = ext->big_buffer;
+        lod->lod_len = compressed_lod_len;
+        lod->lod_cap = ext->big_buffer_cap;
+
+        ext->big_buffer = decompressed_lod_arr;
+        ext->big_buffer_cap = decompressed_lod_cap;
+
+        lod->compression_mode = DH_DATA_COMPRESSION_LZMA2;
+
+        return DH_OK;
+    }
+    case DH_DATA_COMPRESSION_ZSTD: {
+        return DH_ERR_UNSUPPORTED;
+    }
+    default: {
+        return DH_ERR_INVALID_ARGUMENT;
+    }
+    }
 }
 
 void dh_lod_free(
@@ -542,19 +748,17 @@ void dh_lod_free(
     if (lod == NULL) return;
     if (lod->realloc == NULL) return;
 
-    for (int64_t i = 0; i < lod->mapping_len; i++) lod->realloc(lod->mapping_arr[i], 0);
+    for (int64_t i = 0; i < lod->mapping_cap; i++) lod->realloc(lod->mapping_arr[i], 0);
     lod->realloc(lod->mapping_arr, 0);
-    lod->mapping_len = 0;
 
     lod->realloc(lod->lod_arr, 0);
-    lod->lod_len = 0;
-    lod->lod_cap = 0;
 
     struct dh_lod_ext *ext = lod->__ext;
     if (ext != NULL) {
         if (ext->temp_string != NULL) lod->realloc(ext->temp_string, 0);
         if (ext->temp_array != NULL) lod->realloc(ext->temp_array, 0);
         if (ext->temp_buffer != NULL) lod->realloc(ext->temp_buffer, 0);
+        if (ext->big_buffer != NULL) lod->realloc(ext->big_buffer, 0);
 
         for (int64_t i = 0; i < 4; i++)
             anvil_sections_free(&ext->sections[i]);
@@ -567,6 +771,9 @@ void dh_lod_free(
                 lod->realloc(ext->id_lookup[i].sections, 0);
             }
         }
+
+        if (ext->lzma_ctx != NULL) compress_free_lzma(&ext->lzma_ctx, lod->realloc);
+        if (ext->lz4_ctx != NULL) compress_free_lz4(&ext->lz4_ctx, lod->realloc);
     }
     
     lod->__ext = NULL;

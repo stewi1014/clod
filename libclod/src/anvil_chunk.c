@@ -397,7 +397,7 @@ int anvil_parse_sections_ex(
             NULL
         );
 
-        int biome_count = nbt_list_size(section->biome_palette);
+        int biome_count = section->biome_palette == NULL ? 0 : nbt_list_size(section->biome_palette);
         if (biome_count > 1) {
             if (biome_array == NULL) {
                 return -1;
@@ -420,7 +420,7 @@ int anvil_parse_sections_ex(
             }
         }
 
-        int block_state_count = nbt_list_size(section->block_state_palette);
+        int block_state_count = section->block_state_palette == NULL ? 0 : nbt_list_size(section->block_state_palette);
         if (block_state_count > 1) {
             if (block_state_array == NULL) {
                 return -1;

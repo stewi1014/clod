@@ -18,12 +18,14 @@ typedef enum dh_result {
     DH_OK,                      // operation completed successfully.
     DH_ERR_INVALID_ARGUMENT,    // an invalid argument was given.
     DH_ERR_ALLOC,               // memory allocation failure.
-    DH_ERR_MALFORMED            // data is malformed
+    DH_ERR_MALFORMED,           // data is malformed.
+    DH_ERR_UNSUPPORTED,         // the operation is currently unsupported.
+    DH_ERR_COMPRESS             // compression or decompression failed.
 } dh_result;
 
 #define DH_DATA_COMPRESSION_UNCOMPRESSED 0
 #define DH_DATA_COMPRESSION_LZ4 1
-#define DH_DATA_COMPRESSION_Z_STD 2
+#define DH_DATA_COMPRESSION_ZSTD 2
 #define DH_DATA_COMPRESSION_LZMA2 3
 
 #define DH_LOD_CLEAR (struct dh_lod) {\
@@ -78,10 +80,15 @@ dh_result dh_from_lods(
  * 
  * it returns NULL on allocation failure or if a mapping string is > 2^16 - 1 bytes.
  */
-char *dh_lod_serialise_mapping(struct dh_lod *lod, size_t *nbytes);
+dh_result dh_lod_serialise_mapping(
+    struct dh_lod *lod,
+    char **out,
+    size_t *nbytes
+);
 
 /**
- * converts the format from its current compression format to the requested format.
+ * converts the format from its current compression format to the requested format,
+ * it takes uncomrpessed as an argument and is the correct method to use for decompression.
  * 
  * a compression level of .5 is expected to be a reasonable
  * compression level for all compression types,
