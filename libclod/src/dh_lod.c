@@ -1,4 +1,3 @@
-#include <stdbool.h>
 #include <stdlib.h>
 
 #include <anvil.h>
@@ -43,7 +42,7 @@ struct id_lookup {
     size_t sections_cap;
 };
 
-#define ID_LOOKUP_CLEAR (struct id_lookup){NULL, 0}
+#define ID_LOOKUP_CLEAR (struct id_lookup){nullptr, 0}
 
 struct dh_lod_ext {
     char *temp_string;
@@ -66,14 +65,14 @@ struct dh_lod_ext {
 };
 
 int compare_tag_name(const void *tag1, const void *tag2) {
-    size_t size = nbt_name_size((char*)tag1, NULL);
-    if (nbt_name_size((char*)tag2, NULL) < size) {
-        size = nbt_name_size((char*)tag2, NULL);
+    size_t size = nbt_name_size((char*)tag1, nullptr);
+    if (nbt_name_size((char*)tag2, nullptr) < size) {
+        size = nbt_name_size((char*)tag2, nullptr);
     }
 
-    int n = strncmp(nbt_name((char*)tag1, NULL), nbt_name((char*)tag2, NULL), size);
+    const int n = strncmp(nbt_name((char*)tag1, nullptr), nbt_name((char*)tag2, nullptr), size);
     if (n) return n;
-    if (nbt_name_size((char*)tag1, NULL) > nbt_name_size((char*)tag2, NULL)) return 1;
+    if (nbt_name_size((char*)tag1, nullptr) > nbt_name_size((char*)tag2, nullptr)) return 1;
     return -1;
 }
 
@@ -101,7 +100,7 @@ void increment_be_uint16_t(char *ptr) {
  */
 dh_result add_mappings(
     struct dh_lod *lod,
-    struct anvil_sections *sections,
+    const struct anvil_sections *sections,
     struct id_lookup *id_table
 ) {
 
@@ -116,7 +115,7 @@ dh_result add_mappings(
     #define append(off, src, src_len) \
         if (ext->temp_string_cap < (off) + (src_len)) {\
             char *new = lod->realloc(ext->temp_string, (off) + (src_len));\
-            if (new == NULL) return DH_ERR_ALLOC;\
+            if (new == nullptr) return DH_ERR_ALLOC;\
             ext->temp_string = new;\
             ext->temp_string_cap = (off) + (src_len);\
         }\
@@ -127,45 +126,45 @@ dh_result add_mappings(
     struct dh_lod_ext *ext = lod->__ext;
 
     if (id_table->sections_cap < sections->len) {
-        size_t new_cap = sections->len;
+        const size_t new_cap = sections->len;
         struct id_table *new = lod->realloc(id_table->sections, new_cap * sizeof(*id_table->sections));
-        if (new == NULL) {
+        if (new == nullptr) {
             return DH_ERR_ALLOC;
         }
 
-        for (int64_t i = id_table->sections_cap; i < new_cap; i++) {
+        for (auto i = id_table->sections_cap; i < new_cap; i++) {
             new[i].ids_cap = 0;
-            new[i].ids = NULL;
+            new[i].ids = nullptr;
         }
 
         id_table->sections = new;
         id_table->sections_cap = new_cap;
     }
 
-    for (int64_t section_index = 0; section_index < sections->len; section_index++) {
-        struct anvil_section section = sections->section[section_index];
+    for (auto section_index = 0; section_index < sections->len; section_index++) {
+        const struct anvil_section section = sections->section[section_index];
 
-        if (section.biome_palette == NULL || section.block_state_palette == NULL)
+        if (section.biome_palette == nullptr || section.block_state_palette == nullptr)
             continue;
 
-        int32_t biomes = nbt_list_size(section.biome_palette);
+        const auto biomes = nbt_list_size(section.biome_palette);
         if (biomes > 64 || biomes < 0) {
             return DH_ERR_MALFORMED;
         }
 
-        int32_t block_states = nbt_list_size(section.block_state_palette);
+        const auto block_states = nbt_list_size(section.block_state_palette);
         if (block_states > 4096 || block_states < 0) {
             return DH_ERR_MALFORMED;
         }
 
         if (id_table->sections[section_index].ids_cap < biomes * block_states) {
-            size_t new_cap = biomes * block_states;
+            const size_t new_cap = biomes * block_states;
             uint32_t *new = lod->realloc(
                 id_table->sections[section_index].ids, 
                 new_cap * sizeof(*id_table->sections[section_index].ids)
             );
 
-            if (new == NULL) {
+            if (new == nullptr) {
                 return DH_ERR_ALLOC;
             }
 
@@ -189,11 +188,11 @@ dh_result add_mappings(
                 block_state_index < block_states;
                 block_state = nbt_payload_step(block_state, NBT_COMPOUND, section.end), block_state_index++
             ) {
-                char *block_state_name = NULL, *block_state_property = NULL;
+                char *block_state_name = nullptr, *block_state_property = nullptr;
                 nbt_named(block_state, section.end,
                     "Name", strlen("Name"), NBT_STRING, &block_state_name,
                     "Properties", strlen("Properties"), NBT_COMPOUND, &block_state_property,
-                    NULL
+                    nullptr
                 );
 
                 size_t block_state_string_size = biome_string_size;
@@ -207,12 +206,12 @@ dh_result add_mappings(
                     id_table->sections[section_index].air_block_state = block_state_index;
                 }
 
-                if (block_state_property != NULL) {
+                if (block_state_property != nullptr) {
                     int64_t property_count = 0;
                     while (block_state_property[0] == NBT_STRING) {
                         if (ext->temp_array_cap == property_count) {
                             char **new = lod->realloc(ext->temp_array, (2 * ext->temp_array_cap + 2) * sizeof(char*));
-                            if (new == NULL) {
+                            if (new == nullptr) {
                                 return DH_ERR_ALLOC;
                             }
                             ext->temp_array = new;
@@ -221,6 +220,7 @@ dh_result add_mappings(
 
                         ext->temp_array[property_count] = block_state_property;
                         block_state_property = nbt_step(block_state_property, section.end);
+                        property_count++;
                     }
 
                     // every language has a sort method
@@ -228,11 +228,9 @@ dh_result add_mappings(
 
                     qsort(ext->temp_array, property_count, sizeof(char*), compare_tag_name);
 
-                    for (
-                        int property_index = 0; 
-                        property_index < property_count; 
-                        block_state_property = nbt_step(block_state_property, section.end), property_index++
-                    ) {
+                    for (int property_index = 0; property_index < property_count; property_index++) {
+                        block_state_property = ext->temp_array[property_index];
+
                         append(block_state_string_size, "{", 1);
                         append(block_state_string_size, nbt_name(block_state_property, section.end), nbt_name_size  (block_state_property, section.end));
                         append(block_state_string_size, ":", 1);
@@ -248,23 +246,23 @@ dh_result add_mappings(
                 append(block_state_string_size, "\x0", 1);
 
                 uint32_t id = 0;
-                while (id < lod->mapping_len && strcmp(lod->mapping_arr[id], ext->temp_string))
+                while (id < lod->mapping_len && strcmp(lod->mapping_arr[id], ext->temp_string) != 0)
                     id++;
 
                 if (id == lod->mapping_len) {
                     if (lod->mapping_len == lod->mapping_cap) {
-                        size_t new_cap = lod->mapping_cap == 0 ? 16 : lod->mapping_cap * 2;
+                        const size_t new_cap = lod->mapping_cap == 0 ? 16 : lod->mapping_cap * 2;
                         char **new = lod->realloc(lod->mapping_arr, new_cap * sizeof(char*));
-                        if (new == NULL) {
+                        if (new == nullptr) {
                             return DH_ERR_ALLOC;
                         }
-                        for (int64_t i = lod->mapping_cap; i < new_cap; i++) new[i] = NULL;
+                        for (auto i = lod->mapping_cap; i < new_cap; i++) new[i] = nullptr;
                         lod->mapping_arr = new;
                         lod->mapping_cap = new_cap;
                     }
                     
                     char *new = lod->realloc(lod->mapping_arr[id], block_state_string_size);
-                    if (new == NULL) {
+                    if (new == nullptr) {
                         return DH_ERR_ALLOC;
                     }
 
@@ -284,22 +282,17 @@ dh_result add_mappings(
 }
 
 dh_result dh_from_chunks(
-    struct anvil_chunk *chunks,  // 4x4 array of chunks.
+    const struct anvil_chunk *chunks,  // 4x4 array of chunks.
     struct dh_lod *lod          // destination LOD.
 ) {
-    struct dh_lod_ext *ext;
-    dh_result result;
-    char *cursor;
-    int error;
-
-    if (chunks == NULL || lod == NULL) return DH_ERR_INVALID_ARGUMENT;
-    if (lod->realloc == NULL) lod->realloc = realloc;
+    if (chunks == nullptr || lod == nullptr) return DH_ERR_INVALID_ARGUMENT;
+    if (lod->realloc == nullptr) lod->realloc = realloc;
 
     #define ensure_buffer(n) ({\
         if (lod->lod_cap < lod->lod_len + (n)) {\
             size_t new_cap = LOD_GROW(lod->lod_cap, n);\
             char *new = lod->realloc(lod->lod_arr, new_cap);\
-            if (new == NULL) {\
+            if (new == nullptr) {\
                 return DH_ERR_ALLOC;\
             }\
             lod->lod_arr = new;\
@@ -307,27 +300,27 @@ dh_result dh_from_chunks(
         }\
     })
 
-    ext = lod->__ext;
-    if (ext == NULL) {
-        ext = lod->realloc(NULL, sizeof(struct dh_lod_ext));
-        if (ext == NULL) {
+    struct dh_lod_ext* ext = lod->__ext;
+    if (ext == nullptr) {
+        ext = lod->realloc(nullptr, sizeof(struct dh_lod_ext));
+        if (ext == nullptr) {
             return DH_ERR_ALLOC;
         }
 
-        ext->temp_string = NULL;
+        ext->temp_string = nullptr;
         ext->temp_string_cap = 0;
 
-        ext->temp_array = NULL;
+        ext->temp_array = nullptr;
         ext->temp_array_cap = 0;
 
-        ext->temp_buffer = NULL;
+        ext->temp_buffer = nullptr;
         ext->temp_buffer_cap = 0;
 
-        ext->big_buffer = NULL;
+        ext->big_buffer = nullptr;
         ext->big_buffer_cap = 0;
 
-        ext->lzma_ctx = NULL;
-        ext->lz4_ctx = NULL;
+        ext->lzma_ctx = nullptr;
+        ext->lz4_ctx = nullptr;
 
         for (int64_t i = 0; i < 4; i++) {
             ext->sections[i] = ANVIL_SECTIONS_CLEAR;
@@ -342,7 +335,7 @@ dh_result dh_from_chunks(
         lod->lod_arr = ext->big_buffer;
         ext->big_buffer = tmp;
 
-        size_t tmp_cap = lod->lod_cap;
+        const auto tmp_cap = lod->lod_cap;
         lod->lod_cap = ext->big_buffer_cap;
         ext->big_buffer_cap = tmp_cap;
     }
@@ -358,7 +351,7 @@ dh_result dh_from_chunks(
     for (int64_t chunk_x = 0; chunk_x < 4; chunk_x++) {
 
         for (int64_t chunk_z = 0; chunk_z < 4; chunk_z++) {
-            error = anvil_parse_sections_ex(
+            const int error = anvil_parse_sections_ex(
                 &ext->sections[chunk_z],
                 chunks[chunk_x * 4 + chunk_z],
                 lod->realloc
@@ -368,7 +361,7 @@ dh_result dh_from_chunks(
                 return DH_ERR_MALFORMED;
             }
 
-            result = add_mappings(
+            const dh_result result = add_mappings(
                 lod,
                 &ext->sections[chunk_z],
                 &ext->id_lookup[chunk_z]
@@ -388,21 +381,21 @@ dh_result dh_from_chunks(
         for (int64_t block_x = 0; block_x < 16; block_x++)
         for (int64_t chunk_z = 0; chunk_z < 4; chunk_z++) {
 
-            struct anvil_sections *sections = &ext->sections[chunk_z];
-            struct id_lookup *id_lookup = &ext->id_lookup[chunk_z];
+            const struct anvil_sections *sections = &ext->sections[chunk_z];
+            const struct id_lookup *id_lookup = &ext->id_lookup[chunk_z];
 
             for (int64_t block_z = 0; block_z < 16; block_z++) {
 
                 ensure_buffer(2 + 8 * sections->len * 16);
 
-                size_t column_len_off = lod->lod_len;
-                cursor = lod->lod_arr + lod->lod_len;
+                const size_t column_len_off = lod->lod_len;
+                char* cursor = lod->lod_arr + lod->lod_len;
                 cursor[0] = 0;
                 cursor[1] = 0;
                 lod->lod_len += 2;
             
                 if (
-                    sections->status != NULL && (
+                    sections->status != nullptr && (
                     strlen("minecraft:full") != nbt_string_size(sections->status) ||
                     0 != strncmp("minecraft:full", nbt_string(sections->status), strlen("minecraft:full"))
                 )) {
@@ -419,18 +412,18 @@ dh_result dh_from_chunks(
                     1ULL << DH_DATAPOINT_HEIGHT_SHIFT;
             
                 for (int64_t section_index = sections->len - 1; section_index >= 0; section_index--){
-                    struct anvil_section *section = &sections->section[section_index];
+                    const auto section = &sections->section[section_index];
             
-                    if (section->biome_palette == NULL || section->block_state_palette == NULL)
+                    if (section->biome_palette == nullptr || section->block_state_palette == nullptr)
                         continue;
+
+                    const auto id_table = id_lookup->sections[section_index].ids;
             
-                    uint32_t *id_table = id_lookup->sections[section_index].ids;
-            
-                    int32_t biome_count = nbt_list_size(section->biome_palette);
-                    int32_t block_state_count = nbt_list_size(section->block_state_palette);
+                    const auto biome_count = nbt_list_size(section->biome_palette);
+                    const auto block_state_count = nbt_list_size(section->block_state_palette);
             
                     for (int64_t block_y = 15; block_y >= 0; block_y--){
-                        int64_t index = block_y * 16 * 16 + block_z * 16 + block_x;
+                        const int64_t index = block_y * 16 * 16 + block_z * 16 + block_x;
             
                         int32_t biome = 0;
                         if (biome_count > 1) 
@@ -445,14 +438,14 @@ dh_result dh_from_chunks(
             
                         this_datapoint = next_datapoint;
 
-                        if (section->sky_light != NULL) {
+                        if (section->sky_light != nullptr) {
                             next_datapoint = DH_DATAPOINT_SET_SKY_LIGHT(
                                 next_datapoint, 
                                 (section->sky_light[index / 2] >> ((index & 1) * 4)) & 0xF
                             );
                         }
 
-                        if (section->block_light != NULL) {
+                        if (section->block_light != nullptr) {
                             next_datapoint = DH_DATAPOINT_SET_BLOCK_LIGHT(
                                 next_datapoint, 
                                 (section->block_light[index / 2] >> ((index & 1) * 4)) & 0xF
@@ -460,8 +453,8 @@ dh_result dh_from_chunks(
                         } else {
                             next_datapoint = DH_DATAPOINT_SET_BLOCK_LIGHT(next_datapoint, 0);
                         }
-                        
-                        uint32_t id = id_table[biome * block_state_count + block_state];
+
+                        const auto id = id_table[biome * block_state_count + block_state];
                         if ((last_datapoint & DH_DATAPOINT_ID_MASK) >> DH_DATAPOINT_ID_SHIFT == id) {
                             last_datapoint += 
                                 ((uint64_t)1 << DH_DATAPOINT_HEIGHT_SHIFT) + 
@@ -473,14 +466,14 @@ dh_result dh_from_chunks(
                         if ((last_datapoint & DH_DATAPOINT_HEIGHT_MASK) >> DH_DATAPOINT_HEIGHT_SHIFT > 0) {
                             lod->has_data = true;
                             cursor = lod->lod_arr + lod->lod_len;
-                            cursor[0] = (last_datapoint >> (7 * 8)) & 0xFF;
-                            cursor[1] = (last_datapoint >> (6 * 8)) & 0xFF;
-                            cursor[2] = (last_datapoint >> (5 * 8)) & 0xFF;
-                            cursor[3] = (last_datapoint >> (4 * 8)) & 0xFF;
-                            cursor[4] = (last_datapoint >> (3 * 8)) & 0xFF;
-                            cursor[5] = (last_datapoint >> (2 * 8)) & 0xFF;
-                            cursor[6] = (last_datapoint >> (1 * 8)) & 0xFF;
-                            cursor[7] = (last_datapoint >> (0 * 8)) & 0xFF;
+                            cursor[0] = (char)((last_datapoint >> (7 * 8)) & 0xFF);
+                            cursor[1] = (char)((last_datapoint >> (6 * 8)) & 0xFF);
+                            cursor[2] = (char)((last_datapoint >> (5 * 8)) & 0xFF);
+                            cursor[3] = (char)((last_datapoint >> (4 * 8)) & 0xFF);
+                            cursor[4] = (char)((last_datapoint >> (3 * 8)) & 0xFF);
+                            cursor[5] = (char)((last_datapoint >> (2 * 8)) & 0xFF);
+                            cursor[6] = (char)((last_datapoint >> (1 * 8)) & 0xFF);
+                            cursor[7] = (char)((last_datapoint >> (0 * 8)) & 0xFF);
                             lod->lod_len += 8;
                             increment_be_uint16_t(lod->lod_arr + column_len_off);
                         }
@@ -495,14 +488,14 @@ dh_result dh_from_chunks(
                 if ((last_datapoint & DH_DATAPOINT_HEIGHT_MASK) >> DH_DATAPOINT_HEIGHT_SHIFT > 0) {
                     lod->has_data = true;
                     cursor = lod->lod_arr + lod->lod_len;
-                    cursor[0] = (last_datapoint >> (7 * 8)) & 0xFF;
-                    cursor[1] = (last_datapoint >> (6 * 8)) & 0xFF;
-                    cursor[2] = (last_datapoint >> (5 * 8)) & 0xFF;
-                    cursor[3] = (last_datapoint >> (4 * 8)) & 0xFF;
-                    cursor[4] = (last_datapoint >> (3 * 8)) & 0xFF;
-                    cursor[5] = (last_datapoint >> (2 * 8)) & 0xFF;
-                    cursor[6] = (last_datapoint >> (1 * 8)) & 0xFF;
-                    cursor[7] = (last_datapoint >> (0 * 8)) & 0xFF;
+                    cursor[0] = (char)((last_datapoint >> (7 * 8)) & 0xFF);
+                    cursor[1] = (char)((last_datapoint >> (6 * 8)) & 0xFF);
+                    cursor[2] = (char)((last_datapoint >> (5 * 8)) & 0xFF);
+                    cursor[3] = (char)((last_datapoint >> (4 * 8)) & 0xFF);
+                    cursor[4] = (char)((last_datapoint >> (3 * 8)) & 0xFF);
+                    cursor[5] = (char)((last_datapoint >> (2 * 8)) & 0xFF);
+                    cursor[6] = (char)((last_datapoint >> (1 * 8)) & 0xFF);
+                    cursor[7] = (char)((last_datapoint >> (0 * 8)) & 0xFF);
                     lod->lod_len += 8;
                     increment_be_uint16_t(lod->lod_arr + column_len_off);
                 }
@@ -511,11 +504,11 @@ dh_result dh_from_chunks(
         }
     }
 
-    size_t shrink_cap = LOD_SHRINK(lod->lod_len, lod->lod_cap);
+    const auto shrink_cap = LOD_SHRINK(lod->lod_len, lod->lod_cap);
     if (shrink_cap < lod->lod_cap) {
         char *new = lod->realloc(lod->lod_arr, shrink_cap);
         // don't really care if shrinking fails.
-        if (new != NULL) {
+        if (new != nullptr) {
             lod->lod_arr = new;
             lod->lod_cap = shrink_cap;
         }
@@ -530,26 +523,26 @@ dh_result dh_from_lods(
     struct dh_lod *lods, // 2x2 array of source LODs.
     struct dh_lod *lod  // destination LOD.
 ) {
-    if (lods == NULL || lod == NULL) return DH_ERR_INVALID_ARGUMENT;
-    for (int64_t i = 0; i < 4; i++) if (lods[i].realloc == NULL) lods[i].realloc = realloc;
-    if (lod->realloc == NULL) lod->realloc = realloc;
+    if (lods == nullptr || lod == nullptr) return DH_ERR_INVALID_ARGUMENT;
+    for (int64_t i = 0; i < 4; i++) if (lods[i].realloc == nullptr) lods[i].realloc = realloc;
+    if (lod->realloc == nullptr) lod->realloc = realloc;
 
     return DH_ERR_ALLOC;
 }
 
 dh_result dh_lod_serialise_mapping(
-    struct dh_lod *lod,
+    const struct dh_lod *lod,
     char **out,
-    size_t *nbytes
+    size_t *n_bytes
 ) {
     struct dh_lod_ext *ext = lod->__ext;
-    *nbytes = 0;
+    *n_bytes = 0;
 
     #define ensure_buffer(n) \
-        if (ext->temp_buffer_cap < (n) + (*nbytes)) {\
+        if (ext->temp_buffer_cap < (n) + (*n_bytes)) {\
             size_t new_cap = (n) + ext->temp_buffer_cap * 2;\
             char *new = lod->realloc(ext->temp_buffer, new_cap);\
-            if (new == NULL) {\
+            if (new == nullptr) {\
                 return DH_ERR_ALLOC;\
             }\
             ext->temp_buffer_cap = new_cap;\
@@ -557,22 +550,22 @@ dh_result dh_lod_serialise_mapping(
         }\
 
     ensure_buffer(4);
-    ext->temp_buffer[(*nbytes)++] = (lod->mapping_len >> (3 * 8)) & 0xFF;
-    ext->temp_buffer[(*nbytes)++] = (lod->mapping_len >> (2 * 8)) & 0xFF;
-    ext->temp_buffer[(*nbytes)++] = (lod->mapping_len >> (1 * 8)) & 0xFF;
-    ext->temp_buffer[(*nbytes)++] = (lod->mapping_len >> (0 * 8)) & 0xFF;
+    ext->temp_buffer[(*n_bytes)++] = (char)((lod->mapping_len >> (2 * 8)) & 0xFF);
+    ext->temp_buffer[(*n_bytes)++] = (char)((lod->mapping_len >> (3 * 8)) & 0xFF);
+    ext->temp_buffer[(*n_bytes)++] = (char)((lod->mapping_len >> (1 * 8)) & 0xFF);
+    ext->temp_buffer[(*n_bytes)++] = (char)((lod->mapping_len >> (0 * 8)) & 0xFF);
     
     for (int64_t i = 0; i < lod->mapping_len; i++) {
-        size_t size = strlen(lod->mapping_arr[i]);
+        const size_t size = strlen(lod->mapping_arr[i]);
         if (size > UINT16_MAX) {
             return DH_ERR_MALFORMED;
         }
 
         ensure_buffer(2 + size);
-        ext->temp_buffer[(*nbytes)++] = (size >> (1 * 8)) & 0xFF;
-        ext->temp_buffer[(*nbytes)++] = (size >> (0 * 8)) & 0xFF;
-        memcpy(&ext->temp_buffer[*nbytes], lod->mapping_arr[i], size);
-        *nbytes += size;
+        ext->temp_buffer[(*n_bytes)++] = (char)((size >> (1 * 8)) & 0xFF);
+        ext->temp_buffer[(*n_bytes)++] = (char)((size >> (0 * 8)) & 0xFF);
+        memcpy(&ext->temp_buffer[*n_bytes], lod->mapping_arr[i], size);
+        *n_bytes += size;
     }
 
     #undef ensure_buffer
@@ -583,13 +576,12 @@ dh_result dh_lod_serialise_mapping(
         return DH_OK;
     }
     case DH_DATA_COMPRESSION_LZ4: {
-        int result;
         size_t compressed_mapping_len;
 
-        result = compress_lz4(
+        const int result = compress_lz4(
             &ext->lz4_ctx,
             ext->temp_buffer,
-            *nbytes,
+            *n_bytes,
             &ext->temp_string,
             &ext->temp_string_cap,
             &compressed_mapping_len,
@@ -597,23 +589,22 @@ dh_result dh_lod_serialise_mapping(
         );
 
         if (result != 0) {
-            *nbytes = 0;
+            *n_bytes = 0;
             return DH_ERR_COMPRESS;
         }
 
         *out = ext->temp_string;
-        *nbytes = compressed_mapping_len;
+        *n_bytes = compressed_mapping_len;
 
         return DH_OK;
     }
     case DH_DATA_COMPRESSION_LZMA2: {
-        lzma_ret result;
         size_t compressed_mapping_len;
 
-        result = compress_lzma(
+        const lzma_ret result = compress_lzma(
             &ext->lzma_ctx,
             ext->temp_buffer,
-            *nbytes,
+            *n_bytes,
             &ext->temp_string,
             &ext->temp_string_cap,
             &compressed_mapping_len,
@@ -621,12 +612,12 @@ dh_result dh_lod_serialise_mapping(
         );
 
         if (result != LZMA_OK && result != LZMA_STREAM_END) {
-            *nbytes = 0;
+            *n_bytes = 0;
             return DH_ERR_COMPRESS;
         }
 
         *out = ext->temp_string;
-        *nbytes = compressed_mapping_len;
+        *n_bytes = compressed_mapping_len;
 
         return DH_OK;
     }
@@ -641,7 +632,7 @@ dh_result dh_lod_serialise_mapping(
 
 dh_result dh_compress(
     struct dh_lod *lod,
-    int64_t compression_mode,
+    const int64_t compression_mode,
     double level
 ) {
     struct dh_lod_ext *ext = lod->__ext;
@@ -692,10 +683,9 @@ dh_result dh_compress(
         return DH_OK;
     }
     case DH_DATA_COMPRESSION_LZ4: {
-        int result;
         size_t compressed_lod_len;
 
-        result = compress_lz4(
+        const int result = compress_lz4(
             &ext->lz4_ctx,
             decompressed_lod_arr,
             decompressed_lod_len,
@@ -727,10 +717,9 @@ dh_result dh_compress(
         return DH_OK;
     }
     case DH_DATA_COMPRESSION_LZMA2: {
-        lzma_ret result;
         size_t compressed_lod_len;
 
-        result = compress_lzma(
+        const lzma_ret result = compress_lzma(
             &ext->lzma_ctx,
             decompressed_lod_arr,
             decompressed_lod_len,
@@ -773,8 +762,8 @@ dh_result dh_compress(
 void dh_lod_free(
     struct dh_lod *lod
 ) {
-    if (lod == NULL) return;
-    if (lod->realloc == NULL) return;
+    if (lod == nullptr) return;
+    if (lod->realloc == nullptr) return;
 
     for (int64_t i = 0; i < lod->mapping_cap; i++) lod->realloc(lod->mapping_arr[i], 0);
     lod->realloc(lod->mapping_arr, 0);
@@ -782,17 +771,17 @@ void dh_lod_free(
     lod->realloc(lod->lod_arr, 0);
 
     struct dh_lod_ext *ext = lod->__ext;
-    if (ext != NULL) {
-        if (ext->temp_string != NULL) lod->realloc(ext->temp_string, 0);
-        if (ext->temp_array != NULL) lod->realloc(ext->temp_array, 0);
-        if (ext->temp_buffer != NULL) lod->realloc(ext->temp_buffer, 0);
-        if (ext->big_buffer != NULL) lod->realloc(ext->big_buffer, 0);
+    if (ext != nullptr) {
+        if (ext->temp_string != nullptr) lod->realloc(ext->temp_string, 0);
+        if (ext->temp_array != nullptr) lod->realloc(ext->temp_array, 0);
+        if (ext->temp_buffer != nullptr) lod->realloc(ext->temp_buffer, 0);
+        if (ext->big_buffer != nullptr) lod->realloc(ext->big_buffer, 0);
 
         for (int64_t i = 0; i < 4; i++)
             anvil_sections_free(&ext->sections[i]);
         
         for (int64_t i = 0; i < 4; i++) {
-            if (ext->id_lookup[i].sections != NULL) {
+            if (ext->id_lookup[i].sections != nullptr) {
                 for (int64_t j = 0; j < ext->id_lookup->sections_cap; j++) {
                     lod->realloc(ext->id_lookup[i].sections[j].ids, 0);
                 }
@@ -800,10 +789,10 @@ void dh_lod_free(
             }
         }
 
-        if (ext->lzma_ctx != NULL) compress_free_lzma(&ext->lzma_ctx, lod->realloc);
-        if (ext->lz4_ctx != NULL) compress_free_lz4(&ext->lz4_ctx, lod->realloc);
+        if (ext->lzma_ctx != nullptr) compress_free_lzma(&ext->lzma_ctx, lod->realloc);
+        if (ext->lz4_ctx != nullptr) compress_free_lz4(&ext->lz4_ctx, lod->realloc);
     }
     
-    lod->__ext = NULL;
-    lod->realloc = NULL;
+    lod->__ext = nullptr;
+    lod->realloc = nullptr;
 }

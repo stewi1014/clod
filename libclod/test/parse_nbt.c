@@ -21,7 +21,7 @@ int main(int argc, char **argv) {
     assert(nbt_step(chunk_data, end) == end);
 
     char *status = nbt_payload(chunk_data, NBT_COMPOUND, end);
-    while(strncmp(nbt_name(status, end), "Status", nbt_name_size(status, end)))
+    while(strncmp(nbt_name(status, end), "Status", nbt_name_size(status, end)) != 0)
         status = nbt_step(status, end);
 
     printf(

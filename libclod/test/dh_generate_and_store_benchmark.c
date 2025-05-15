@@ -13,14 +13,14 @@
 
 int main(int argc, char **argv) {
     struct anvil_world *world = anvil_open(ANVIL_WORLD);
-    if (world == NULL) {
+    if (world == nullptr) {
         printf("open world: %s\n", strerror(errno));
         return -1;
     }
 
     remove(DH_DATABASE);
     struct dh_db *db = dh_db_open(DH_DATABASE);
-    assert(db != NULL);
+    assert(db != nullptr);
 
     struct timespec start, end;
     struct timespec read_start, read_end;
@@ -30,30 +30,30 @@ int main(int argc, char **argv) {
     struct timespec store_start, store_end;
 
     long read_ns = 0, decompress_ns = 0, lod_gen_ns = 0, compress_ns = 0, store_ns = 0, total_ns;
-    size_t read_nbytes = 0, decompress_nbytes = 0, lod_allocated_nbytes = 0, lod_nbytes = 0, compress_nbytes = 0, compressed_nbytes = 0, store_nbytes = 0;
+    size_t read_n_bytes = 0, decompress_n_bytes = 0, lod_allocated_n_bytes = 0, lod_n_bytes = 0, compress_n_bytes = 0, compressed_n_bytes = 0, store_n_bytes = 0;
     size_t num_regions = 0, num_chunks = 0, num_lods = 0, num_store = 0;
     timespec_get(&start, TIME_UTC);
     
     struct anvil_chunk_ctx *chunk_ctx[16];
     for (int xi = 0; xi < 4; xi++) for (int zi = 0; zi < 4; zi++) {
-        chunk_ctx[xi * 4 + zi] = anvil_chunk_ctx_alloc(NULL);
+        chunk_ctx[xi * 4 + zi] = anvil_chunk_ctx_alloc(nullptr);
     }
 
     struct anvil_region_iter *iter = anvil_region_iter_new("region", world);
     struct anvil_region region;
     struct anvil_chunk chunks[16];
-    struct dh_lod lod = DH_LOD_CLEAR;
+    auto lod = DH_LOD_CLEAR;
     dh_result result;
 
     int error;
     timespec_get(&read_start, TIME_UTC);
-    while (!(error = anvil_region_iter_next(&region, iter))) {
+    while (!((error = anvil_region_iter_next(&region, iter)))) {
         //printf("(%d, %d) ", region.region_x, region.region_z);
 
         timespec_get(&read_end, TIME_UTC);
 
         num_regions++;
-        read_nbytes += region.data_size;
+        read_n_bytes += region.data_size;
         read_ns += 
             (read_end.tv_sec * 1000000000L + read_end.tv_nsec) - 
             (read_start.tv_sec * 1000000000L + read_start.tv_nsec);
@@ -63,7 +63,7 @@ int main(int argc, char **argv) {
             timespec_get(&decompress_start, TIME_UTC);
             for (int xi = 0; xi < 4; xi++) for (int zi = 0; zi < 4; zi++) {
                 chunks[xi * 4 + zi] = anvil_chunk_decompress(chunk_ctx[xi * 4 + zi], &region, x + xi, z + zi);
-                decompress_nbytes += chunks[xi * 4 + zi].data_size;
+                decompress_n_bytes += chunks[xi * 4 + zi].data_size;
                 num_chunks++;
             }
             timespec_get(&decompress_end, TIME_UTC);
@@ -78,8 +78,8 @@ int main(int argc, char **argv) {
             timespec_get(&lod_end, TIME_UTC);
 
             assert(result == DH_OK);
-            lod_nbytes += lod.lod_len;
-            lod_allocated_nbytes += lod.lod_cap;
+            lod_n_bytes += lod.lod_len;
+            lod_allocated_n_bytes += lod.lod_cap;
             num_lods++;
             lod_gen_ns += 
                 (lod_end.tv_sec * 1000000000L + lod_end.tv_nsec) -
@@ -89,9 +89,9 @@ int main(int argc, char **argv) {
 
             // compress LOD
             timespec_get(&compress_start, TIME_UTC);
-                compress_nbytes += lod.lod_len;
+                compress_n_bytes += lod.lod_len;
                 result = dh_compress(&lod, DH_DATA_COMPRESSION_LZ4, 0.75);
-                compressed_nbytes += lod.lod_len;
+                compressed_n_bytes += lod.lod_len;
             timespec_get(&compress_end, TIME_UTC);
 
             assert(result == DH_OK);
@@ -104,7 +104,7 @@ int main(int argc, char **argv) {
                 result = dh_db_store(db, &lod);
                 assert(result == 0);
             
-                store_nbytes += lod.lod_len;
+                store_n_bytes += lod.lod_len;
                 num_store++;
             timespec_get(&store_end, TIME_UTC);
 
@@ -128,57 +128,57 @@ int main(int argc, char **argv) {
 
     printf(
         "read         %8.1fMB of world data from %7ld regions in %9.1fms (%6.3fms/region), %7.3fMB/s overall, %9.3fMB/s while active, %8.3f regions/second overall\n",
-        (double)read_nbytes / 1000000.0,
+        (double)read_n_bytes / 1000000.0,
         num_regions,
         (double)read_ns / 1000000.0,
-        (double)read_ns / (1000000.0 * num_regions),
-        (double)read_nbytes * 1000 / total_ns,
-        (double)read_nbytes * 1000 / read_ns,
-        ((double)num_regions * 1000000000.0) / total_ns
+        (double)read_ns / (1000000.0 * (double)num_regions),
+        (double)read_n_bytes * 1000 / (double)total_ns,
+        (double)read_n_bytes * 1000 / (double)read_ns,
+        ((double)num_regions * 1000000000.0) / (double)total_ns
     );
 
     printf(
         "decompressed %8.1fMB of chunk data from %7ld chunks in  %9.1fms (%6.3fms/chunk),  %7.3fMB/s overall, %9.3fMB/s while active, %8.3f chunks/second overall\n",
-        (double)decompress_nbytes / 1000000.0,
+        (double)decompress_n_bytes / 1000000.0,
         num_chunks,
         (double)decompress_ns / 1000000.0,
-        (double)decompress_ns / (1000000.0 * num_chunks),
-        (double)decompress_nbytes * 1000 / total_ns,
-        (double)decompress_nbytes * 1000 / decompress_ns,
-        ((double)num_chunks * 1000000000.0) / total_ns
+        (double)decompress_ns / (1000000.0 * (double)num_chunks),
+        (double)decompress_n_bytes * 1000 / (double)total_ns,
+        (double)decompress_n_bytes * 1000 / (double)decompress_ns,
+        ((double)num_chunks * 1000000000.0) / (double)total_ns
     );
 
     printf(
         "generated    %8.1fMB of LOD data in     %7ld LODs in    %9.1fms (%6.3fms/LOD),    %7.3fMB/s overall, %9.3fMB/s while active, %8.3f LODs/second overall\n",
-        (double)lod_nbytes / 1000000.0,
+        (double)lod_n_bytes / 1000000.0,
         num_lods,
         (double)lod_gen_ns / 1000000.0,
-        (double)lod_gen_ns / (1000000.0 * num_lods),
-        (double)lod_nbytes * 1000 / total_ns,
-        (double)lod_nbytes * 1000 / lod_gen_ns,
-        ((double)num_lods * 1000000000.0) / total_ns
+        (double)lod_gen_ns / (1000000.0 * (double)num_lods),
+        (double)lod_n_bytes * 1000 / (double)total_ns,
+        (double)lod_n_bytes * 1000 / (double)lod_gen_ns,
+        ((double)num_lods * 1000000000.0) / (double)total_ns
     );
 
     printf(
         "compressed   %8.1fMB of LOD data in     %7ld LODs in    %9.1fms (%6.3fms/LOD),    %7.3fMB/s overall, %9.3fMB/s while active, %8.3f LODs/second overall\n",
-        (double)compress_nbytes / 1000000.0,
+        (double)compress_n_bytes / 1000000.0,
         num_store,
         (double)compress_ns / 1000000.0,
-        (double)compress_ns / (1000000.0 * num_store),
-        (double)compress_nbytes * 1000 / total_ns,
-        (double)compress_nbytes * 1000 / compress_ns,
-        ((double)num_store * 1000000000.0) / total_ns
+        (double)compress_ns / (1000000.0 * (double)num_store),
+        (double)compress_n_bytes * 1000 / (double)total_ns,
+        (double)compress_n_bytes * 1000 / (double)compress_ns,
+        ((double)num_store * 1000000000.0) / (double)total_ns
     );
 
     printf(
         "stored       %8.1fMB of LOD data from   %7ld LODs in    %9.1fms (%6.3fms/LOD),    %7.3fMB/s overall, %9.3fMB/s while active, %8.3f LODs/second overall\n",
-        (double)store_nbytes / 1000000.0,
+        (double)store_n_bytes / 1000000.0,
         num_store,
         (double)store_ns / 1000000.0,
-        (double)store_ns / (1000000.0 * num_store),
-        (double)store_nbytes * 1000 / total_ns,
-        (double)store_nbytes * 1000 / store_ns,
-        ((double)num_store * 1000000000.0) / total_ns
+        (double)store_ns / (1000000.0 * (double)num_store),
+        (double)store_n_bytes * 1000 / (double)total_ns,
+        (double)store_n_bytes * 1000 / (double)store_ns,
+        ((double)num_store * 1000000000.0) / (double)total_ns
     );
     
     for (int xi = 0; xi < 4; xi++) for (int zi = 0; zi < 4; zi++) {

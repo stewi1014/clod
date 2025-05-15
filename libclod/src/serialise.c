@@ -28,18 +28,18 @@ struct LOD_SerialiseCtx {
 
 struct LOD_SerialiseCtx *LOD_createSerialiseCtx() {
     struct LOD_SerialiseCtx *ctx = malloc(sizeof(struct LOD_SerialiseCtx));
-    ctx->zstd_stream = NULL;
-    ctx->lzma_stream = NULL;
-    ctx->lz4_stream = NULL;
+    ctx->zstd_stream = nullptr;
+    ctx->lzma_stream = nullptr;
+    ctx->lz4_stream = nullptr;
     return ctx;
 }
 
 int LOD_serialiseSection(struct LOD_SerialiseCtx *ctx, struct LOD_Section* section, FILE *out, union LOD_CompressionOptions opts);
 
 void LOD_freeSerialiseCtx(struct LOD_SerialiseCtx* ctx) {
-    if (ctx->zstd_stream != NULL) ZSTD_freeCStream(ctx->zstd_stream);
-    if (ctx->lzma_stream != NULL) (lzma_end(ctx->lzma_stream), free(ctx->lzma_stream));
-    if (ctx->lz4_stream != NULL) LZ4_freeStream(ctx->lz4_stream);
+    if (ctx->zstd_stream != nullptr) ZSTD_freeCStream(ctx->zstd_stream);
+    if (ctx->lzma_stream != nullptr) (lzma_end(ctx->lzma_stream), free(ctx->lzma_stream));
+    if (ctx->lz4_stream != nullptr) LZ4_freeStream(ctx->lz4_stream);
     free(ctx);
 }
 
@@ -51,18 +51,18 @@ struct LOD_DeserialiseCtx {
 
 struct LOD_DeserialiseCtx *LOD_createDeserialiseCtx() {
     struct LOD_DeserialiseCtx *ctx = malloc(sizeof(struct LOD_DeserialiseCtx));
-    ctx->zstd_stream = NULL;
-    ctx->lzma_stream = NULL;
-    ctx->lz4_stream = NULL;
+    ctx->zstd_stream = nullptr;
+    ctx->lzma_stream = nullptr;
+    ctx->lz4_stream = nullptr;
     return ctx;
 }
 
 int LOD_deserialiseSection(struct LOD_DeserialiseCtx *ctx, struct LOD_Section* section, FILE *in);
 
 void LOD_freeDeserialiseCtx(struct LOD_DeserialiseCtx *ctx){
-    if (ctx->zstd_stream != NULL) ZSTD_freeDStream(ctx->zstd_stream);
-    if (ctx->lzma_stream != NULL) (lzma_end(ctx->lzma_stream), free(ctx->lzma_stream));
-    if (ctx->lz4_stream != NULL) LZ4_freeStreamDecode(ctx->lz4_stream);
+    if (ctx->zstd_stream != nullptr) ZSTD_freeDStream(ctx->zstd_stream);
+    if (ctx->lzma_stream != nullptr) (lzma_end(ctx->lzma_stream), free(ctx->lzma_stream));
+    if (ctx->lz4_stream != nullptr) LZ4_freeStreamDecode(ctx->lz4_stream);
     free(ctx);
 }
 */

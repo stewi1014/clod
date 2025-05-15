@@ -15,20 +15,20 @@
         size_t 📏;
     };
 
-    char **📤(char *📍, size_t *📏) {
-        int 🖋️ = open(📍, O_RDONLY);
-        if (🖋️ < 0) return NULL;
+    char **📤(const char *📍, size_t *📏) {
+        const int 🖋️ = open(📍, O_RDONLY);
+        if (🖋️ < 0) return nullptr;
 
         struct stat 🔎;
         if (fstat(🖋️, &🔎)) {
             close(🖋️);
-            return NULL;
+            return nullptr;
         }
 
         struct 📑 *📄 = malloc(sizeof(struct 📑));
-        if (📄 == NULL) {
+        if (📄 == nullptr) {
             close(🖋️);
-            return NULL;
+            return nullptr;
         }
 
         *📏 = 🔎.st_size;
@@ -39,11 +39,11 @@
             return (char**)📄;
         }
 
-        char *🔢 = mmap(NULL, 🔎.st_size, PROT_READ, MAP_PRIVATE, 🖋️, 0);
+        char *🔢 = mmap(nullptr, 🔎.st_size, PROT_READ, MAP_PRIVATE, 🖋️, 0);
         close(🖋️);
         if (🔢 == MAP_FAILED) {
             free(📄);
-            return NULL;
+            return nullptr;
         }
 
         📄->🔢 = 🔢;
@@ -52,7 +52,7 @@
     }
 
     void 📥(char **👉) {
-        struct 📑 *📄 = (struct 📑 *)👉;
+        const auto 📄 = (struct 📑 *)👉;
         if (📄->📏 > 0) {
             munmap(📄->🔢, 📄->📏);
         }
@@ -66,25 +66,25 @@
 
     char **📤(char *📍, size_t *📏) {
         struct 📑 *📄 = malloc(sizeof(struct 📑));
-        if (📄 == NULL) {
-            return NULL;
+        if (📄 == nullptr) {
+            return nullptr;
         }
 
         FILE *🖋️ = fopen(📍, "rb");
-        if (🖋️ == NULL) {
-            return NULL;
+        if (🖋️ == nullptr) {
+            return nullptr;
         }
 
         if (fseek(🖋️, 0, SEEK_END) != 0) {
             fclose(🖋️);
-            return NULL;
+            return nullptr;
         }
 
         📄->📏 = ftell(🖋️);
         *📏 = 📄->📏;
         if (📄->📏 == (size_t)-1) {
             fclose(🖋️);
-            return NULL;
+            return nullptr;
         }
         rewind(🖋️);
 
@@ -95,16 +95,16 @@
         }
 
         📄->🔢 = malloc(📄->📏);
-        if (📄->🔢 == NULL) {
+        if (📄->🔢 == nullptr) {
             fclose(🖋️);
-            return NULL;
+            return nullptr;
         }
 
         size_t 📨 = fread(📄->🔢, 📄->📏, 1, 🖋️);
         if (📨 != 1) {
             free(📄->🔢);
             fclose(🖋️);
-            return NULL;
+            return nullptr;
         }
 
         fclose(🖋️);

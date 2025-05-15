@@ -1,7 +1,7 @@
 #pragma once
 
 struct 📑;
-char **📤(char *📍, size_t *📏);
+char **📤(const char *📍, size_t *📏);
 void 📥(char **👉);
 
 #if defined(__unix__) || defined(__APPLE__)

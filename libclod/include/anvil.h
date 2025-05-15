@@ -17,7 +17,7 @@ struct anvil_world;
 /**
  * same as anvil_open_ex, but reference function implementations are used.
  */
-struct anvil_world *anvil_open(char *path);
+struct anvil_world *anvil_open(const char *path);
 
 /**
  * opens an anvil-format minecraft world.
@@ -45,9 +45,9 @@ struct anvil_world *anvil_open(char *path);
  * realloc_f must behave like the realloc function.
  */
 struct anvil_world *anvil_open_ex(
-    char *path,
-    char **(*open_file)(char *path, size_t *size),
-    void (*close_file)(char **file),
+    const char *path,
+    char **(*open_file_f)(const char *path, size_t *size),
+    void (*close_file_f)(char **file),
     void *(*realloc_f)(void*, size_t)
 );
 
@@ -88,7 +88,7 @@ struct anvil_region anvil_region_new(
 );
 
 struct anvil_region_iter;
-struct anvil_region_iter *anvil_region_iter_new(char *subdir, struct anvil_world *world);
+struct anvil_region_iter *anvil_region_iter_new(const char *subdir, const struct anvil_world *world);
 void anvil_region_iter_free(struct anvil_region_iter *);
 int anvil_region_iter_next(
     struct anvil_region *,
@@ -111,7 +111,7 @@ int anvil_region_iter_next(
  */
 
 struct anvil_chunk_ctx;
-struct anvil_chunk_ctx *anvil_chunk_ctx_alloc(struct anvil_world *);
+struct anvil_chunk_ctx *anvil_chunk_ctx_alloc(const struct anvil_world *);
 void anvil_chunk_ctx_free(struct anvil_chunk_ctx *);
 
 struct anvil_chunk {
@@ -123,7 +123,7 @@ struct anvil_chunk {
 
 struct anvil_chunk anvil_chunk_decompress(
     struct anvil_chunk_ctx *,
-    struct anvil_region *,
+    const struct anvil_region *,
     int64_t chunk_x,
     int64_t chunk_z
 );
@@ -173,7 +173,7 @@ struct anvil_sections {
 int anvil_parse_sections_ex(
     struct anvil_sections *sections,
     struct anvil_chunk,
-    void *(*realloc)(void*, size_t)
+    void *(*realloc_f)(void*, size_t)
 );
 
 /**

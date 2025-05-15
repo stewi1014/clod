@@ -7,32 +7,31 @@
 
 int compress_lz4(
     void **ctx_ptr,
-    char *in,
-    size_t in_len,
+    const char *in,
+    const size_t in_len,
     char **out,
     size_t *out_cap,
     size_t *actual_out,
     void *(*realloc_f)(void*, size_t)
 ) {
-    LZ4F_cctx **ctx = (LZ4F_cctx**)ctx_ptr;
-    LZ4F_errorCode_t err;
+    const auto ctx = (LZ4F_cctx**)ctx_ptr;
 
     LZ4F_preferences_t prefs = {0};
     prefs.compressionLevel = 0;
     prefs.frameInfo.blockSizeID = LZ4F_max64KB;
     prefs.frameInfo.blockMode = LZ4F_blockIndependent;
 
-    if (*ctx == NULL) {
-        err = LZ4F_createCompressionContext(ctx, LZ4F_VERSION);
+    if (*ctx == nullptr) {
+        const LZ4F_errorCode_t err = LZ4F_createCompressionContext(ctx, LZ4F_VERSION);
         if (LZ4F_isError(err)) {
             return -1;
         }
     }
 
-    size_t max_compressed_size = LZ4F_HEADER_SIZE_MAX + LZ4F_compressBound(in_len, &prefs);
+    const size_t max_compressed_size = LZ4F_HEADER_SIZE_MAX + LZ4F_compressBound(in_len, &prefs);
     if (*out_cap < max_compressed_size) {
         char *new = realloc_f(*out, max_compressed_size);
-        if (new == NULL) {
+        if (new == nullptr) {
             return -1;
         }
 
@@ -40,28 +39,28 @@ int compress_lz4(
         *out_cap = max_compressed_size;
     }
 
-    size_t header_size = LZ4F_compressBegin(*ctx, *out, *out_cap, &prefs);
+    const size_t header_size = LZ4F_compressBegin(*ctx, *out, *out_cap, &prefs);
     if (LZ4F_isError(header_size)) {
         return -1;
     }
 
-    size_t compressed_size = LZ4F_compressUpdate(
+    const size_t compressed_size = LZ4F_compressUpdate(
         *ctx,
         *out + header_size,
         *out_cap - header_size,
         in,
         in_len,
-        NULL
+        nullptr
     );
     if (LZ4F_isError(compressed_size)) {
         return -1;
     }
 
-    size_t end_size = LZ4F_compressEnd(
+    const size_t end_size = LZ4F_compressEnd(
         *ctx, 
         *out + header_size + compressed_size, 
         *out_cap - header_size - compressed_size,
-        NULL
+        nullptr
     );
     if (LZ4F_isError(end_size)) {
         return -1;
@@ -75,34 +74,34 @@ void compress_free_lz4(
     void **ctx_ptr,
     void *(*realloc_f)(void*, size_t)
 ) {
-    LZ4F_cctx **ctx = (LZ4F_cctx**)ctx_ptr;
+    const auto ctx = (LZ4F_cctx**)ctx_ptr;
 
-    if (*ctx != NULL) {
+    if (*ctx != nullptr) {
         LZ4F_freeCompressionContext(*ctx);
-        *ctx = NULL;
+        *ctx = nullptr;
     }
 }
 
 lzma_ret compress_lzma(
-    void **ctx,
-    char *in,
-    size_t in_len,
+    void **ctx_ptr,
+    const char *in,
+    const size_t in_len,
     char **out,
     size_t *out_cap,
     size_t *actual_out,
     void *(*realloc_f)(void*, size_t)
 ) {
-    lzma_stream *strm = (lzma_stream*)*ctx;
+    lzma_stream *strm = *ctx_ptr;
     lzma_ret result;
 
-    if (strm == NULL) {
-        strm = realloc_f(NULL, sizeof(lzma_stream));
-        if (strm == NULL) {
+    if (strm == nullptr) {
+        strm = realloc_f(nullptr, sizeof(lzma_stream));
+        if (strm == nullptr) {
             return LZMA_MEM_ERROR;
         }
 
         *strm = (lzma_stream)LZMA_STREAM_INIT;
-        *ctx = strm;
+        *ctx_ptr = strm;
 
         result = lzma_easy_encoder(strm, 0, LZMA_CHECK_CRC32);
         if (result != LZMA_OK) {
@@ -120,9 +119,9 @@ lzma_ret compress_lzma(
 
     do {
         if (strm->avail_out == 0) {
-            size_t new_cap = BUFFER_GROW(*out_cap);
+            const size_t new_cap = BUFFER_GROW(*out_cap);
             char *new = realloc_f(*out, new_cap);
-            if (new == NULL) {
+            if (new == nullptr) {
                 return LZMA_MEM_ERROR;
             }
 
@@ -141,13 +140,13 @@ lzma_ret compress_lzma(
 }
 
 void compress_free_lzma(
-    void **ctx,
+    void **ctx_ptr,
     void *(*realloc_f)(void*, size_t)
 ) {
-    lzma_stream *strm = (lzma_stream*)*ctx;
-    if (strm != NULL) {
+    lzma_stream *strm = *ctx_ptr;
+    if (strm != nullptr) {
         lzma_end(strm);
         realloc_f(strm, 0);
-        *ctx = NULL;
+        *ctx_ptr = nullptr;
     }
 }

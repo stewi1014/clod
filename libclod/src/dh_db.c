@@ -1,7 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <stdint.h>
 
 #include <sqlite3.h>
 
@@ -52,30 +51,29 @@ extern unsigned dh_constants_gen_step_lz4_len;
 extern unsigned char dh_constants_gen_step_lzma[];
 extern unsigned dh_constants_gen_step_lzma_len;
 
-int run_migration(sqlite3 *db, char *name, const char *sql, int sql_size) {
+int run_migration(sqlite3 *db, char *name, const char *sql, size_t sql_size) {
     sqlite3_stmt *stmt;
     const char *tail;
-    int err;
 
-    err = sqlite3_prepare_v2(db, "select * from Schema where ScriptName=?",-1, &stmt, NULL);
+    int err = sqlite3_prepare_v2(db, "select * from Schema where ScriptName=?", -1, &stmt, nullptr);
     if (err != SQLITE_OK) {
         fprintf(stderr, "checking migration %s: (%d) %s\n", name, err, sqlite3_errmsg(db));
         return -1;
     }
 
-    sqlite3_bind_text(stmt, 1, name, -1, NULL);
+    sqlite3_bind_text(stmt, 1, name, -1, nullptr);
     err = sqlite3_step(stmt);
     sqlite3_finalize(stmt);
     if (err == SQLITE_ROW) return 0;
 
     while (sql_size > 0) {
-        err = sqlite3_prepare_v2(db, sql, sql_size, &stmt, &tail);
+        err = sqlite3_prepare_v2(db, sql, (int)sql_size, &stmt, &tail);
         if (err != SQLITE_OK) {
             fprintf(stderr, "preparing %s: (%d) %s\n", name, err, sqlite3_errmsg(db));
             return -1;
         }
 
-        if (stmt != NULL) {
+        if (stmt != nullptr) {
             err = sqlite3_step(stmt);
             if (err != SQLITE_DONE && err != SQLITE_ROW) {
                 fprintf(stderr, "executing %s: (%d) %s\n", name, err, sqlite3_errmsg(db));
@@ -89,13 +87,13 @@ int run_migration(sqlite3 *db, char *name, const char *sql, int sql_size) {
         sql = tail;
     };
 
-    err = sqlite3_prepare_v2(db, "insert into Schema (ScriptName) values(?)", -1, &stmt, NULL);
+    err = sqlite3_prepare_v2(db, "insert into Schema (ScriptName) values(?)", -1, &stmt, nullptr);
     if (err != SQLITE_OK) {
         fprintf(stderr, "checking migration %s: (%d) %s\n", name, err, sqlite3_errmsg(db));
         return -1;
     }
 
-    sqlite3_bind_text(stmt, 1, name, -1, NULL);
+    sqlite3_bind_text(stmt, 1, name, -1, nullptr);
     err = sqlite3_step(stmt);
     sqlite3_finalize(stmt);
     if (err == SQLITE_ROW) return 0;
@@ -109,28 +107,25 @@ struct dh_db {
     sqlite3_stmt *store;
 };
 
-struct dh_db *dh_db_open(char *path) {
-    int err;
-    struct dh_db *db;
+struct dh_db *dh_db_open(const char *path) {
+    struct dh_db* db = calloc(1, sizeof(struct dh_db));
+    if (db == nullptr) return nullptr;
 
-    db = calloc(1, sizeof(struct dh_db));
-    if (db == NULL) return NULL;
-
-    err = sqlite3_open_v2(path, &db->db, SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE, NULL);
+    int err = sqlite3_open_v2(path, &db->db, SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE, nullptr);
     if (err != SQLITE_OK) {
         fprintf(stderr, "sqlite3_open: %s\n", sqlite3_errmsg(db->db));
         sqlite3_close(db->db);
         free(db);
-        return NULL;
+        return nullptr;
     }
 
     sqlite3_stmt *stmt;
-    err = sqlite3_prepare_v2(db->db, "SELECT name FROM sqlite_master WHERE name='Schema'", -1, &stmt, NULL);
+    err = sqlite3_prepare_v2(db->db, "SELECT name FROM sqlite_master WHERE name='Schema'", -1, &stmt, nullptr);
     if (err != SQLITE_OK) {
         fprintf(stderr, "sqlite3_prepare_v2: %s\n", sqlite3_errmsg(db->db));
         sqlite3_close(db->db);
         free(db);
-        return NULL;
+        return nullptr;
     }
     err = sqlite3_step(stmt);
     sqlite3_finalize(stmt);
@@ -141,13 +136,13 @@ struct dh_db *dh_db_open(char *path) {
             "    ScriptName TEXT NOT NULL UNIQUE, \n"
             "    AppliedDateTime DATETIME NOT NULL default CURRENT_TIMESTAMP \n"
             ")",
-            -1,&stmt, NULL
+            -1,&stmt, nullptr
         );
         if (err != SQLITE_OK) {
             fprintf(stderr, "create Schema sql: %s\n", sqlite3_errmsg(db->db));
             sqlite3_close(db->db);
             free(db);
-            return NULL;
+            return nullptr;
         }
 
         err = sqlite3_step(stmt);
@@ -156,13 +151,13 @@ struct dh_db *dh_db_open(char *path) {
             fprintf(stderr, "execute create Schema: %s\n", sqlite3_errmsg(db->db));
             sqlite3_close(db->db);
             free(db);
-            return NULL;
+            return nullptr;
         }
     }
 
     #define MIGRATION(name, sql, sql_len) \
     if (run_migration(db->db, name, (const char*)sql, sql_len)) \
-        { sqlite3_close(db->db); free(db); return NULL; }
+        { sqlite3_close(db->db); free(db); return nullptr; }
 
     MIGRATION(
         "sqlScripts/0010-sqlite-createInitialDataTables.sql",
@@ -219,7 +214,7 @@ struct dh_db *dh_db_open(char *path) {
     );
 
 
-    char *store_sql =
+    const char *store_sql =
         "insert into FullData ("
         "DetailLevel, "
         "PosX, "
@@ -238,20 +233,20 @@ struct dh_db *dh_db_open(char *path) {
         "CreatedUnixDateTime"
         ") values (?,?,?,?,?,?,?,?,?,?,?,0,0,?,?)";
 
-    err = sqlite3_prepare_v2(db->db, store_sql, strlen(store_sql)+1, &db->store, NULL);
+    err = sqlite3_prepare_v2(db->db, store_sql, (int)strlen(store_sql)+1, &db->store, nullptr);
     if (err != SQLITE_OK) {
         fprintf(stderr, "sqlite3_prepate_v2: %s\n", sqlite3_errmsg(db->db));
         sqlite3_close(db->db);
         free(db);
-        return NULL;
+        return nullptr;
     }
 
-    err = sqlite3_prepare_v2(db->db, "pragma journal_mode = OFF; PRAGMA synchronous = OFF; ", -1, &stmt, NULL);
+    err = sqlite3_prepare_v2(db->db, "pragma journal_mode = OFF; PRAGMA synchronous = OFF; ", -1, &stmt, nullptr);
     if (err != SQLITE_OK) {
         fprintf(stderr, "sqlite3_prepate_v2: %s\n", sqlite3_errmsg(db->db));
         sqlite3_close(db->db);
         free(db);
-        return NULL;
+        return nullptr;
     }
 
     do {
@@ -261,7 +256,7 @@ struct dh_db *dh_db_open(char *path) {
         fprintf(stderr, "sqlite3_step: %s\n", sqlite3_errmsg(db->db));
         sqlite3_close(db->db);
         free(db);
-        return NULL;
+        return nullptr;
     }
 
     sqlite3_finalize(stmt);
@@ -271,14 +266,13 @@ struct dh_db *dh_db_open(char *path) {
 
 void dh_db_close(struct dh_db *db) {
     sqlite3_stmt *stmt;
-    int err;
 
-    if (db == NULL) return;
+    if (db == nullptr) return;
 
-    if (db->db != NULL){
-        err = sqlite3_prepare_v2(db->db, "pragma journal_mode = WAL; pragma synchronous = NORMAL; ", -1, &stmt, NULL);
+    if (db->db != nullptr){
+        int err = sqlite3_prepare_v2(db->db, "pragma journal_mode = WAL; pragma synchronous = NORMAL; ", -1, &stmt, nullptr);
         if (err != SQLITE_OK) {
-            fprintf(stderr, "sqlite3_prepate_v2: %s\n", sqlite3_errmsg(db->db));
+            fprintf(stderr, "sqlite3_prepare_v2: %s\n", sqlite3_errmsg(db->db));
         }
 
         do {
@@ -297,25 +291,25 @@ void dh_db_close(struct dh_db *db) {
         if (err != SQLITE_OK) {
             fprintf(stderr, "sqlite3_finalize: %s\n", sqlite3_errmsg(db->db));
         }
-        db->store = NULL;
+        db->store = nullptr;
 
         err = sqlite3_close(db->db);
         if (err != SQLITE_OK) {
             fprintf(stderr, "sqlite3_close: %s\n", sqlite3_errmsg(db->db));
         }
-        db->db = NULL;
+        db->db = nullptr;
     }
 
     free(db);
 
 }
 
-int dh_db_store(struct dh_db *db, struct dh_lod *lod) {
-    if (db == NULL || lod == NULL) return -1;
+int dh_db_store(const struct dh_db *db, struct dh_lod *lod) {
+    if (db == nullptr || lod == nullptr) return -1;
 
     size_t mapping_len;
     char *mapping;
-    dh_result result = dh_lod_serialise_mapping(lod, &mapping, &mapping_len);
+    const dh_result result = dh_lod_serialise_mapping(lod, &mapping, &mapping_len);
     if (result != DH_OK) {
         return -1;
     }
@@ -336,6 +330,9 @@ int dh_db_store(struct dh_db *db, struct dh_lod *lod) {
         check_error(sqlite3_bind_blob(db->store, 7, dh_constants_gen_step_lzma, dh_constants_gen_step_lzma_len, SQLITE_STATIC));
         check_error(sqlite3_bind_blob(db->store, 8, dh_constants_compression_mode_lzma, dh_constants_compression_mode_lzma_len, SQLITE_STATIC));
         break;
+    default:
+        fprintf(stderr, "unknown LOD compression mode\n");
+        return -1;
     }
 
     check_error(sqlite3_bind_int(db->store, 1, lod->detail_level));
@@ -352,8 +349,7 @@ int dh_db_store(struct dh_db *db, struct dh_lod *lod) {
 
     #undef check_error
 
-    int error;
-    error = sqlite3_step(db->store);
+    int error = sqlite3_step(db->store);
     if (error != SQLITE_DONE) {
         fprintf(stderr, "sqlite3_step FullData: (%d) %s\n", error, sqlite3_errmsg(db->db));
         return -1;

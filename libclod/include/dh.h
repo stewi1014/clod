@@ -5,8 +5,6 @@
  */
 #pragma once
 #include <stddef.h>
-#include <stdint.h>
-#include <stdbool.h>
 
 #include <anvil.h>
 
@@ -30,10 +28,10 @@ typedef enum dh_result {
 
 #define DH_LOD_CLEAR (struct dh_lod) {\
     0, 0, -64, 0, DH_DATA_COMPRESSION_UNCOMPRESSED, \
-    NULL, 0, 0, \
-    NULL, 0, 0, \
+    nullptr, 0, 0, \
+    nullptr, 0, 0, \
     true, \
-    NULL, NULL\
+    nullptr, nullptr\
 }
 
 struct dh_lod {
@@ -44,16 +42,16 @@ struct dh_lod {
     int64_t compression_mode;           // type of compression used to compress the LOD.
 
     char  **mapping_arr;                // id to biome, blockstate and blockstate properties mapping.
-    int64_t mapping_len;                // size of the mapping.
-    int64_t mapping_cap;                // size of allocated mapping.
+    size_t mapping_len;                // size of the mapping.
+    size_t mapping_cap;                // size of allocated mapping.
 
     char   *lod_arr;                    // lod data in serialised form.
-    int64_t lod_len;                    // length of serialised lod data.
-    int64_t lod_cap;                    // size of allocated array.
+    size_t lod_len;                    // length of serialised lod data.
+    size_t lod_cap;                    // size of allocated array.
 
     bool has_data;                      // true if the LOD contains any non-empty columns.
 
-    void *(*realloc)(void*, size_t);    // used to allocate and free memory. methods will set this if it is NULL.
+    void *(*realloc)(void*, size_t);    // used to allocate and free memory. methods will set this if it is nullptr.
     void *__ext;                        // internal usage.
 };
 
@@ -61,7 +59,7 @@ struct dh_lod {
  * generates a DH LOD from chunk data.
  */
 dh_result dh_from_chunks(
-    struct anvil_chunk *chunks, // 4x4 array of chunks.
+    const struct anvil_chunk *chunks, // 4x4 array of chunks.
     struct dh_lod *lod          // destination LOD.
 );
 
@@ -78,12 +76,12 @@ dh_result dh_from_lods(
  * 
  * the buffer is reused between calls.
  * 
- * it returns NULL on allocation failure or if a mapping string is > 2^16 - 1 bytes.
+ * it returns nullptr on allocation failure or if a mapping string is > 2^16 - 1 bytes.
  */
 dh_result dh_lod_serialise_mapping(
-    struct dh_lod *lod,
+    const struct dh_lod *lod,
     char **out,
-    size_t *nbytes
+    size_t *n_bytes
 );
 
 /**
@@ -114,6 +112,6 @@ void dh_lod_free(
 //==================//
 
 struct dh_db;
-struct dh_db *dh_db_open(char *path);
+struct dh_db *dh_db_open(const char *path);
 void dh_db_close(struct dh_db *db);
-int dh_db_store(struct dh_db *db, struct dh_lod *lod);
+int dh_db_store(const struct dh_db *db, struct dh_lod *lod);
