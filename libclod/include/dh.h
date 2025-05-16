@@ -13,6 +13,7 @@
 //================//
 
 typedef enum dh_result {
+    DH_INVALID,                 // never intentionally returned.
     DH_OK,                      // operation completed successfully.
     DH_ERR_INVALID_ARGUMENT,    // an invalid argument was given.
     DH_ERR_ALLOC,               // memory allocation failure.
@@ -27,21 +28,22 @@ typedef enum dh_result {
 #define DH_DATA_COMPRESSION_LZMA2 3
 
 #define DH_LOD_CLEAR (struct dh_lod) {\
-    0, 0, -64, 0, DH_DATA_COMPRESSION_UNCOMPRESSED, \
+    0, 0, 0, 0, 0, DH_DATA_COMPRESSION_UNCOMPRESSED, \
     nullptr, 0, 0, \
     nullptr, 0, 0, \
-    true, \
+    false, \
     nullptr, nullptr\
 }
 
 struct dh_lod {
     int64_t x;                          // x position. based on the first chunk's position.
     int64_t z;                          // z position. based on the first chunk's position.
+    int64_t height;                     // height of the LOD.
     int64_t min_y;                      // bottom of the LOD - y positions in LOD are relative to this.
-    int64_t detail_level;               // detail level.
+    int64_t mip_level;                  // mip/detail level. 0, 1, 2, 3... = 1, 2, 4, 8... block wide datapoints.
     int64_t compression_mode;           // type of compression used to compress the LOD.
 
-    char  **mapping_arr;                // id to biome, blockstate and blockstate properties mapping.
+    char  **mapping_arr;                // id to biome, block state and block state properties mapping.
     size_t mapping_len;                // size of the mapping.
     size_t mapping_cap;                // size of allocated mapping.
 
@@ -64,11 +66,26 @@ dh_result dh_from_chunks(
 );
 
 /**
- * generates the next lower quality DH LOD from higher quality LOD data.
+ * creates a LOD with the given mip level using data from the given LODs.
+ *
+ * it does not currently support arbitrary generation, and instead
+ * only supports 2x2, 4x4, 8x8, 16x16, 32x32 and 64x64 input lods of the same mip level,
+ * to generate a +1,  +2,  +3,  +4,    +5    and +6 mip level LOD respectively.
+ *
+ * notably, 64x64 input lods is about a gigabyte of LOD data.
+ * that is a truly insane amount of memory for this task.
+ * generating a single LOD from more data than that in one go is unlikely to ever be supported.
+ * instead, generation should be done in stages, and only relevant data kept in memory instead.
+ *
+ * LODs may be null or empty.
+ * 
+ * it will probably decompress the source LODs and not recompress them.
  */
-dh_result dh_from_lods(
-    struct dh_lod *lods, // 2x2 array of source LODs.
-    struct dh_lod *lod   // destination LOD.
+dh_result dh_lod_mip(
+    struct dh_lod *lod,   // destination LOD.
+    int64_t mip_level,    // mip level to generate.
+    struct dh_lod **lods, // source LODs.
+    int64_t num_lods      // number of source LODs.
 );
 
 /**

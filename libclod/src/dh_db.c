@@ -335,7 +335,7 @@ int dh_db_store(const struct dh_db *db, struct dh_lod *lod) {
         return -1;
     }
 
-    check_error(sqlite3_bind_int(db->store, 1, lod->detail_level));
+    check_error(sqlite3_bind_int(db->store, 1, lod->mip_level));
     check_error(sqlite3_bind_int(db->store, 2, lod->x));
     check_error(sqlite3_bind_int(db->store, 3, lod->z));
     check_error(sqlite3_bind_int(db->store, 4, lod->min_y));

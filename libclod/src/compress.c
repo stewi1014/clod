@@ -17,7 +17,7 @@ int compress_lz4(
     const auto ctx = (LZ4F_cctx**)ctx_ptr;
 
     LZ4F_preferences_t prefs = {0};
-    prefs.compressionLevel = 0;
+    prefs.compressionLevel = 2;
     prefs.frameInfo.blockSizeID = LZ4F_max64KB;
     prefs.frameInfo.blockMode = LZ4F_blockIndependent;
 

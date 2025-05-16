@@ -10,7 +10,7 @@ inline const char *nbt_memshift(char *ptr, const char *end, size_t old_size, siz
     __nbt_assert(end != nullptr);
     __nbt_assert(end >= ptr);
 
-    // if old_size is larger than the apparant size of the entire buffer,
+    // if old_size is larger than the apparent size of the entire buffer,
     // I think that means something must be wrong (old_size obviously, but where is it coming from...)
     // this may mean that growing into a buffer that has no existing NBT data might need more care.
     // we're supposed to be able to grow end as much as we need here (user should ensure buffer is large enough for the data they write)

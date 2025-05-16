@@ -165,7 +165,7 @@ char *nbt_payload_step(char *payload, char type, const char *end) __nbt_nonnull(
 )
 
 /** (3) the type of the tag. tag must not be nullptr. */
-inline __nbt_nonnull(1)
+static __nbt_nonnull(1)
 char nbt_type(const char *tag, const char *end) {
     __nbt_assert(tag != nullptr);
     __nbt_assert(__nbt_has_data(tag, end, 1));
@@ -173,7 +173,7 @@ char nbt_type(const char *tag, const char *end) {
 }
 
 /** (3) parses the size of the tag name. tag must not be nullptr. returns 0 if tag is malformed. */
-inline __nbt_nonnull(1)
+static __nbt_nonnull(1)
 uint16_t nbt_name_size(const char *tag, const char *end) {
     __nbt_assert(tag != nullptr);
     __nbt_assert(__nbt_has_data(tag, end, 3));
@@ -184,7 +184,7 @@ uint16_t nbt_name_size(const char *tag, const char *end) {
 }
 
 /** (3) returns the non-null-terminated name of the tag. tag must not be nullptr. returns "" if tag is malformed. */
-inline __nbt_nonnull(1)
+static __nbt_nonnull(1)
 const char *nbt_name(const char *tag, const char *end) {
     __nbt_assert(tag != nullptr);
     if (!__nbt_has_data(tag, end, 3)) return "";
@@ -226,14 +226,14 @@ char *nbt_payload(char *tag, const char type, const char *end) {
 }
 
 /** (1) parses a byte payload. payload must not be nullptr. */
-inline __nbt_nonnull(1)
+static __nbt_nonnull(1)
 int8_t nbt_byte(const char *payload) {
     __nbt_assert(payload != nullptr);
     return payload[0];
 }
 
 /** (2) parses a short payload. payload must not be nullptr. */
-inline __nbt_nonnull(1)
+static __nbt_nonnull(1)
 int16_t nbt_short(const char *payload) {
     __nbt_assert(payload != nullptr);
     return 
@@ -242,7 +242,7 @@ int16_t nbt_short(const char *payload) {
 }
 
 /** (4) parses an int payload. payload must not be nullptr. */
-inline __nbt_nonnull(1)
+static __nbt_nonnull(1)
 int32_t nbt_int(const char *payload) {
     __nbt_assert(payload != nullptr);
     return 
@@ -253,7 +253,7 @@ int32_t nbt_int(const char *payload) {
 }
 
 /** (8) parses a long payload. payload must not be nullptr. */
-inline __nbt_nonnull(1)
+static __nbt_nonnull(1)
 int64_t nbt_long(const char *payload) {
     __nbt_assert(payload != nullptr);
     return 
@@ -268,7 +268,7 @@ int64_t nbt_long(const char *payload) {
 }
 
 /** (4) parses a float payload. payload must not be nullptr. */
-inline __nbt_nonnull(1)
+static __nbt_nonnull(1)
 float nbt_float(const char *payload) {
     __nbt_assert(payload != nullptr);
     union { uint32_t i; float f; } bits;
@@ -281,7 +281,7 @@ float nbt_float(const char *payload) {
 }
 
 /** (8) parses a double payload. payload must not be nullptr. */
-inline __nbt_nonnull(1)
+static __nbt_nonnull(1)
 double nbt_double(const char *payload) {
     __nbt_assert(payload != nullptr);
     union { uint64_t l; double d; } bits;
@@ -298,7 +298,7 @@ double nbt_double(const char *payload) {
 }
 
 /** (4) parses the size of the byte array. payload must not be nullptr. */
-inline __nbt_nonnull(1)
+static __nbt_nonnull(1)
 int32_t nbt_byte_array_size(const char *payload) {
     __nbt_assert(payload != nullptr);
     return
@@ -309,14 +309,14 @@ int32_t nbt_byte_array_size(const char *payload) {
 }
 
 /** (4) returns the byte array. returns nullptr if payload is nullptr. */
-inline
+static
 char *nbt_byte_array(char *payload) {
     if (payload == nullptr) return nullptr;
     return payload + 4;
 }
 
 /** (2) parses the size of the string. payload must not be nullptr. */
-inline __nbt_nonnull(1)
+static __nbt_nonnull(1)
 uint16_t nbt_string_size(const char *payload) {
     __nbt_assert(payload != nullptr);
     return
@@ -325,21 +325,21 @@ uint16_t nbt_string_size(const char *payload) {
 }
 
 /** (2) returns the non null-terminated string. returns nullptr if payload is nullptr. */
-inline
+static
 char *nbt_string(char *payload) {
     if (payload == nullptr) return nullptr;
     return payload + 2;
 }
 
 /** (5) parses the element type portion of a list payload. payload must not be nullptr. */
-inline __nbt_nonnull(1)
+static __nbt_nonnull(1)
 char nbt_list_etype(const char *payload) {
     __nbt_assert(payload != nullptr);
     return payload[0];
 }
 
 /** (5) parses the size portion of a list payload. payload must not be nullptr. */
-inline __nbt_nonnull(1)
+static __nbt_nonnull(1)
 int32_t nbt_list_size(const char *payload) {
     __nbt_assert(payload != nullptr);
     return
@@ -350,14 +350,14 @@ int32_t nbt_list_size(const char *payload) {
 }
 
 /** (5) returns the first list element. returns nullptr if payload is nullptr. */
-inline
+static
 char *nbt_list_payload(char *payload) {
     if (payload == nullptr) return nullptr;
     return payload + 5;
 }
 
 /** (4) parses the size of the int array. payload must not be nullptr. */
-inline __nbt_nonnull(1)
+static __nbt_nonnull(1)
 int32_t nbt_int_array_size(const char *payload) {
     __nbt_assert(payload != nullptr);
     return
@@ -368,14 +368,14 @@ int32_t nbt_int_array_size(const char *payload) {
 }
 
 /** (4) returns the first int payload in the int array. returns nullptr if payload is nullptr. */
-inline
+static
 char *nbt_int_array_payload(char *payload) {
     if (payload == nullptr) return nullptr;
     return payload + 4;
 }
 
 /** (4) parses the size of the long array. payload must not be nullptr. */
-inline __nbt_nonnull(1)
+static __nbt_nonnull(1)
 int32_t nbt_long_array_size(const char *payload) {
     __nbt_assert(payload != nullptr);
     return
@@ -386,14 +386,14 @@ int32_t nbt_long_array_size(const char *payload) {
 }
 
 /** (4) returns the first long payload in the long array. returns nullptr if payload is nullptr. */
-inline
+static
 char *nbt_long_array_payload(char *payload) {
     if (payload == nullptr) return nullptr;
     return payload + 4;
 }
 
 /** returns the value of an integer type tag. the type must be an integer. tag must not be nullptr. */
-inline __nbt_nonnull(1)
+static __nbt_nonnull(1)
 int64_t nbt_autointeger(const char *tag, const char *end) {
     __nbt_assert(tag != nullptr);
     __nbt_assert(__nbt_has_data(tag, end, 3));
@@ -413,7 +413,7 @@ int64_t nbt_autointeger(const char *tag, const char *end) {
 }
 
 /** returns the value of a number type tag. the type must be an number. tag must not be nullptr. */
-inline __nbt_nonnull(1)
+static __nbt_nonnull(1)
 double nbt_autonumber(const char *tag) {
     __nbt_assert(tag != nullptr);
     __nbt_assert(nbt_type_is_number(tag[0]));
@@ -438,7 +438,7 @@ double nbt_autonumber(const char *tag) {
  * returns the packed integer at the given index in the packed array. 
  * data must not be nullptr
  */
-inline
+static
 uint64_t nbt_packed_array_elem(char *payload, const int i, const int bits) {
     __nbt_assert(payload != nullptr);
 
