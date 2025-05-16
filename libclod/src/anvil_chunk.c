@@ -211,7 +211,7 @@ struct anvil_chunk anvil_chunk_decompress(
 
 static
 int read_block_state_array(
-    uint16_t *block_state_indicies,
+    uint16_t *block_state_indices,
     const char *block_state_array,
     int32_t block_states
 ) {
@@ -229,13 +229,13 @@ int read_block_state_array(
             ((uint64_t)(unsigned char)cursor[4] << 24) +
             ((uint64_t)(unsigned char)cursor[5] << 16) +
             ((uint64_t)(unsigned char)cursor[6] << 8) +
-            (uint64_t)(unsigned char)cursor[7];
+             (uint64_t)(unsigned char)cursor[7];
 
         cursor += 8;
 
         for (unsigned j = 0; j <= 64 - bits && i < 4096; j += bits, i++) {
-            block_state_indicies[i] = (n >> j) & mask;
-            if (block_state_indicies[i] > block_states) {
+            block_state_indices[i] = (n >> j) & mask;
+            if (block_state_indices[i] > block_states) {
                 #ifndef NDEBUG
                 return -1;
                 #else
@@ -250,7 +250,7 @@ int read_block_state_array(
 
 static
 int read_biome_array(
-    uint16_t *biome_indicies,
+    uint16_t *biome_indices,
     const char *biome_array,
     int32_t biomes
 ) {
@@ -268,13 +268,13 @@ int read_biome_array(
             ((uint64_t)(unsigned char)cursor[4] << 24) +
             ((uint64_t)(unsigned char)cursor[5] << 16) +
             ((uint64_t)(unsigned char)cursor[6] << 8) +
-            (uint64_t)(unsigned char)cursor[7];
+             (uint64_t)(unsigned char)cursor[7];
 
         cursor += 8;
 
         for (unsigned j = 0; j <= 64 - bits && i < 64; j += bits, i++) {
-            biome_indicies[i] = (n >> j) & mask;
-            if (biome_indicies[i] > biomes) {
+            biome_indices[i] = (n >> j) & mask;
+            if (biome_indices[i] > biomes) {
                 #ifndef NDEBUG
                 return -1;
                 #else
@@ -306,7 +306,7 @@ int anvil_parse_sections_ex(
 
     char *section_list = nullptr;
     int64_t section_min_y = INT64_MIN;
-    char* end = nbt_named(nbt_payload(chunk.data, NBT_COMPOUND, chunk.data + chunk.data_size),
+    const char* end = nbt_named(nbt_payload(chunk.data, NBT_COMPOUND, chunk.data + chunk.data_size),
                           chunk.data + chunk.data_size,
                           "sections", strlen("sections"), NBT_LIST, &section_list,
                           "xPos", strlen("xPos"), NBT_ANY_INTEGER, &sections->x,
@@ -330,9 +330,9 @@ int anvil_parse_sections_ex(
         for (int64_t i = sections->cap; i < section_count; i++) {
             new[i].end = nullptr;
             new[i].block_state_palette = nullptr;
-            new[i].block_state_indicies = nullptr;
+            new[i].block_state_indices = nullptr;
             new[i].biome_palette = nullptr;
-            new[i].biome_indicies = nullptr;
+            new[i].biome_indices = nullptr;
             new[i].block_light = nullptr;
             new[i].sky_light = nullptr;
         }
@@ -407,15 +407,15 @@ int anvil_parse_sections_ex(
                 return -1;
             }
 
-            if (section->biome_indicies == nullptr) {
-                section->biome_indicies = sections->realloc(nullptr, 4 * 4 * 4 * sizeof(uint16_t));
-                if (section->biome_indicies == nullptr) {
+            if (section->biome_indices == nullptr) {
+                section->biome_indices = sections->realloc(nullptr, 4 * 4 * 4 * sizeof(uint16_t));
+                if (section->biome_indices == nullptr) {
                     return -1;
                 }
             }
 
             const int error = read_biome_array(
-                section->biome_indicies, 
+                section->biome_indices,
                 biome_array,
                 biome_count
             );
@@ -430,15 +430,15 @@ int anvil_parse_sections_ex(
                 return -1;
             }
 
-            if (section->block_state_indicies == nullptr) {
-                section->block_state_indicies = sections->realloc(nullptr, 16 * 16 * 16 * sizeof(uint16_t));
-                if (section->block_state_indicies == nullptr) {
+            if (section->block_state_indices == nullptr) {
+                section->block_state_indices = sections->realloc(nullptr, 16 * 16 * 16 * sizeof(uint16_t));
+                if (section->block_state_indices == nullptr) {
                     return -1;
                 }
             }
 
             const int error = read_block_state_array(
-                section->block_state_indicies,
+                section->block_state_indices,
                 block_state_array, 
                 block_state_count
             );
@@ -457,11 +457,11 @@ void anvil_sections_free(
     struct anvil_sections *sections
 ) {
     for (int64_t i = 0; i < sections->cap; i++) {
-        if (sections->section[i].biome_indicies != nullptr)
-            sections->realloc(sections->section[i].biome_indicies, 0);
+        if (sections->section[i].biome_indices != nullptr)
+            sections->realloc(sections->section[i].biome_indices, 0);
 
-        if (sections->section[i].block_state_indicies != nullptr)
-            sections->realloc(sections->section[i].block_state_indicies, 0);
+        if (sections->section[i].block_state_indices != nullptr)
+            sections->realloc(sections->section[i].block_state_indices, 0);
     }
 
     sections->realloc(sections->section, 0);

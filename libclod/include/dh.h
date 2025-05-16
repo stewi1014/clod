@@ -44,17 +44,17 @@ struct dh_lod {
     int64_t compression_mode;           // type of compression used to compress the LOD.
 
     char  **mapping_arr;                // id to biome, block state and block state properties mapping.
-    size_t mapping_len;                // size of the mapping.
-    size_t mapping_cap;                // size of allocated mapping.
+    size_t  mapping_len;                // size of the mapping.
+    size_t  mapping_cap;                // size of allocated mapping.
 
     char   *lod_arr;                    // lod data in serialised form.
-    size_t lod_len;                    // length of serialised lod data.
-    size_t lod_cap;                    // size of allocated array.
+    size_t  lod_len;                    // length of serialised lod data.
+    size_t  lod_cap;                    // size of allocated array.
 
     bool has_data;                      // true if the LOD contains any non-empty columns.
 
     void *(*realloc)(void*, size_t);    // used to allocate and free memory. methods will set this if it is nullptr.
-    void *__ext;                        // internal usage.
+    void *__internal;                   // internal usage.
 };
 
 /**
@@ -62,7 +62,7 @@ struct dh_lod {
  */
 dh_result dh_from_chunks(
     const struct anvil_chunk *chunks, // 4x4 array of chunks.
-    struct dh_lod *lod          // destination LOD.
+    struct dh_lod *lod                // destination LOD.
 );
 
 /**
@@ -85,7 +85,7 @@ dh_result dh_lod_mip(
     struct dh_lod *lod,   // destination LOD.
     int64_t mip_level,    // mip level to generate.
     struct dh_lod **lods, // source LODs.
-    int64_t num_lods      // number of source LODs.
+    size_t num_lods       // number of source LODs.
 );
 
 /**
@@ -96,14 +96,14 @@ dh_result dh_lod_mip(
  * it returns nullptr on allocation failure or if a mapping string is > 2^16 - 1 bytes.
  */
 dh_result dh_lod_serialise_mapping(
-    const struct dh_lod *lod,
+    struct dh_lod *lod,
     char **out,
     size_t *n_bytes
 );
 
 /**
  * converts the format from its current compression format to the requested format,
- * it takes uncomrpessed as an argument and is the correct method to use for decompression.
+ * it takes uncompressed as an argument and is the correct method to use for decompression.
  * 
  * a compression level of .5 is expected to be a reasonable
  * compression level for all compression types,
@@ -117,7 +117,15 @@ dh_result dh_compress(
 );
 
 /**
- * frees resources associated with the lod and clears it.
+ * frees temporary resources, reducing the size of the LOD to a minimum required to hold the LODs data.
+ * the LOD retains its data and is valid.
+ */
+void dh_lod_trim(
+    struct dh_lod *lod
+);
+
+/**
+ * frees resources associated with the lod. the LOD must not be reused.
  */
 void dh_lod_free(
     struct dh_lod *lod

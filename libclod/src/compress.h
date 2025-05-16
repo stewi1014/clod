@@ -10,7 +10,8 @@ int compress_lz4(
     char **out,
     size_t *out_cap,
     size_t *actual_out,
-    void *(*realloc_f)(void*, size_t)
+    void *(*realloc_f)(void*, size_t),
+    double level
 );
 
 void compress_free_lz4(
@@ -25,7 +26,8 @@ lzma_ret compress_lzma(
     char **out,
     size_t *out_cap,
     size_t *actual_out,
-    void *(*realloc_f)(void*, size_t)
+    void *(*realloc_f)(void*, size_t),
+    double level
 );
 
 void compress_free_lzma(

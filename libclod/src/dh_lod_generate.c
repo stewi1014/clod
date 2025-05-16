@@ -28,6 +28,7 @@ int compare_tag_name(const void *tag1, const void *tag2) {
  */
 dh_result add_mappings(
     struct dh_lod *lod,
+    struct dh_lod_ext *ext,
     const struct anvil_sections *sections,
     struct id_lookup *id_table
 ) {
@@ -50,8 +51,6 @@ dh_result add_mappings(
         memcpy(ext->temp_string + (off), (src), (src_len));\
         (off) += (src_len);
 
-
-    struct dh_lod_ext *ext = lod->__ext;
 
     if (id_table->sections_cap < sections->len) {
         const size_t new_cap = sections->len;
@@ -173,33 +172,13 @@ dh_result add_mappings(
 
                 append(block_state_string_size, "\x0", 1);
 
-                uint32_t id = 0;
-                while (id < lod->mapping_len && strcmp(lod->mapping_arr[id], ext->temp_string) != 0)
-                    id++;
-
-                if (id == lod->mapping_len) {
-                    if (lod->mapping_len == lod->mapping_cap) {
-                        const size_t new_cap = lod->mapping_cap == 0 ? 16 : lod->mapping_cap * 2;
-                        char **new = lod->realloc(lod->mapping_arr, new_cap * sizeof(char*));
-                        if (new == nullptr) {
-                            return DH_ERR_ALLOC;
-                        }
-                        for (auto i = lod->mapping_cap; i < new_cap; i++) new[i] = nullptr;
-                        lod->mapping_arr = new;
-                        lod->mapping_cap = new_cap;
-                    }
-
-                    char *new = lod->realloc(lod->mapping_arr[id], block_state_string_size);
-                    if (new == nullptr) {
-                        return DH_ERR_ALLOC;
-                    }
-
-                    strcpy(new, ext->temp_string);
-                    lod->mapping_arr[id] = new;
-                    lod->mapping_len++;
-                }
-
-                id_table->sections[section_index].ids[biome_index * nbt_list_size(section.block_state_palette) + block_state_index] = id;
+                const dh_result res = dh_lod_add_mapping(
+                    lod,
+                    ext->temp_string,
+                    block_state_string_size,
+                    &id_table->sections[section_index].ids[biome_index * nbt_list_size(section.block_state_palette) + block_state_index]
+                );
+                if (res != DH_OK) return res;
             }
         }
     }
@@ -216,13 +195,18 @@ dh_result dh_from_chunks(
     if (chunks == nullptr || lod == nullptr) return DH_ERR_INVALID_ARGUMENT;
 
     struct dh_lod_ext *ext;
-    const dh_result res = dh_lod_reset(lod, &ext);
+    dh_result res = dh_lod_ext_get(lod, &ext);
     if (res != DH_OK) return res;
 
-    lod->mip_level = 0;
-    lod->compression_mode = DH_DATA_COMPRESSION_UNCOMPRESSED;
+
     lod->x = chunks->chunk_x / 4;
     lod->z = chunks->chunk_z / 4;
+    lod->height = 0;
+    lod->min_y = 0;
+    lod->mip_level = 0;
+    lod->compression_mode = DH_DATA_COMPRESSION_UNCOMPRESSED;
+    lod->mapping_len = 0;
+    lod->lod_len = 0;
     lod->has_data = false;
 
     if (ext->big_buffer_cap > lod->lod_cap) {
@@ -234,18 +218,6 @@ dh_result dh_from_chunks(
         lod->lod_cap = ext->big_buffer_cap;
         ext->big_buffer_cap = tmp_cap;
     }
-
-    #define ensure_buffer(n) ({\
-        if (lod->lod_cap < lod->lod_len + (n)) {\
-            size_t new_cap = LOD_GROW(lod->lod_cap, n);\
-            char *new = lod->realloc(lod->lod_arr, new_cap);\
-            if (new == nullptr) {\
-                return DH_ERR_ALLOC;\
-            }\
-            lod->lod_arr = new;\
-            lod->lod_cap = new_cap;\
-        }\
-    })
 
     for (int64_t chunk_x = 0; chunk_x < 4; chunk_x++) {
 
@@ -262,6 +234,7 @@ dh_result dh_from_chunks(
 
             const dh_result result = add_mappings(
                 lod,
+                ext,
                 &ext->sections[chunk_z],
                 &ext->id_lookup[chunk_z]
             );
@@ -282,7 +255,9 @@ dh_result dh_from_chunks(
 
             for (int64_t block_z = 0; block_z < 16; block_z++) {
 
-                ensure_buffer(2 + 8 * sections->len * 16);
+                res = dh_lod_ensure(lod, 2 + 8 * sections->len * 16);
+                if (res != DH_OK) return res;
+
                 char *cursor     = lod->lod_arr + lod->lod_len + 2;
 
                 if (
@@ -318,11 +293,11 @@ dh_result dh_from_chunks(
 
                         int32_t biome = 0;
                         if (biome_count > 1)
-                            biome = section->biome_indicies[(block_y / 4) * 4 * 4 + (block_z / 4) * 4 + (block_x / 4)];
+                            biome = section->biome_indices[(block_y / 4) * 4 * 4 + (block_z / 4) * 4 + (block_x / 4)];
 
                         int32_t block_state = 0;
                         if (block_state_count > 1)
-                            block_state = section->block_state_indicies[index];
+                            block_state = section->block_state_indices[index];
 
                         assert(biome < biome_count);
                         assert(block_state < block_state_count);
@@ -346,7 +321,7 @@ dh_result dh_from_chunks(
                         }
 
                         const auto id = id_table[biome * block_state_count + block_state];
-                        if ((last_datapoint & DP_ID_MASK) >> DP_ID_SHIFT == id) {
+                        if (DP_ID(last_datapoint) == id) {
                             last_datapoint +=
                                 ((uint64_t)1 << DP_HEIGHT_SHIFT) +
                                 ((uint64_t)-1 << DP_MIN_Y_SHIFT);
@@ -354,7 +329,7 @@ dh_result dh_from_chunks(
                             continue;
                         }
 
-                        if ((last_datapoint & DP_HEIGHT_MASK) >> DP_HEIGHT_SHIFT > 0) {
+                        if (DP_HEIGHT(last_datapoint) > 0) {
                             dp_write(cursor, last_datapoint);
                             cursor += 8;
                         }
@@ -366,7 +341,7 @@ dh_result dh_from_chunks(
                     }
                 }
 
-                if ((last_datapoint & DP_HEIGHT_MASK) >> DP_HEIGHT_SHIFT > 0) {
+                if (DP_HEIGHT(last_datapoint) > 0) {
                     dp_write(cursor, last_datapoint);
                     cursor += 8;
                 }
@@ -377,16 +352,6 @@ dh_result dh_from_chunks(
                 (lod->lod_arr + lod->lod_len)[1] = (char)(count >> (0 * 8) & 0xFF);
                 lod->lod_len = cursor - lod->lod_arr;
             }
-        }
-    }
-
-    const auto shrink_cap = LOD_SHRINK(lod->lod_len, lod->lod_cap);
-    if (shrink_cap < lod->lod_cap) {
-        char *new = lod->realloc(lod->lod_arr, shrink_cap);
-        // don't really care if shrinking fails.
-        if (new != nullptr) {
-            lod->lod_arr = new;
-            lod->lod_cap = shrink_cap;
         }
     }
 

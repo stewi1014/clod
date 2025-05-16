@@ -39,186 +39,194 @@ int dh_compare_lod_pos(const void *lod1_ptr, const void *lod2_ptr) {
     return 0;
 }
 
-dh_result dh_lod_reset(
+int64_t dh_lods_same_mip_level(struct dh_lod **lods, const size_t num_lods) {
+    size_t i = 0;
+    while (i < num_lods && lods[i] == NULL) i++;
+    if (i == num_lods) return DH_LODS_NO_LODS;
+    const int64_t mip_level = lods[i]->mip_level;
+    i++;
+    while (i < num_lods) {
+        if (lods[i] != NULL && lods[i]->mip_level != mip_level)
+            return DH_LODS_NOT_SAME;
+        i++;
+    }
+    return mip_level;
+}
+
+int64_t dh_lods_same_min_y(struct dh_lod **lods, const size_t num_lods) {
+    size_t i = 0;
+    while (i < num_lods && lods[i] == NULL) i++;
+    if (i == num_lods) return DH_LODS_NO_LODS;
+    const int64_t min_y = lods[i]->min_y;
+    i++;
+    while (i < num_lods) {
+        if (lods[i] != NULL && lods[i]->min_y != min_y)
+            return DH_LODS_NOT_SAME;
+        i++;
+    }
+    return min_y;
+}
+
+int64_t dh_lods_max_height(struct dh_lod **lods, const size_t num_lods) {
+    int64_t height = DH_LODS_NO_LODS;
+    for (size_t i = 0; i < num_lods; i++)
+        if (lods[i] != NULL && lods[i]->height > height)
+            height = lods[i]->height;
+    return height;
+}
+
+dh_result dh_lod_ext_get(
     struct dh_lod *lod,
     struct dh_lod_ext **ext_ptr
 ) {
     if (lod->realloc == nullptr) lod->realloc = realloc;
-
-    lod->x = 0;
-    lod->z = 0;
-    lod->height = 0;
-    lod->min_y = 0;
-    lod->mip_level = 0;
-    lod->compression_mode = 0;
-    lod->mapping_len = 0;
-    lod->lod_len = 0;
-    lod->has_data = false;
-
-    struct dh_lod_ext *ext = lod->__ext;
+    struct dh_lod_ext *ext = lod->__internal;
     if (ext == nullptr) {
         ext = lod->realloc(nullptr, sizeof(struct dh_lod_ext));
         if (ext == nullptr) {
             return DH_ERR_ALLOC;
         }
 
-        ext->temp_string = nullptr;
-        ext->temp_string_cap = 0;
-
-        ext->temp_array = nullptr;
-        ext->temp_array_cap = 0;
-
-        ext->temp_buffer = nullptr;
-        ext->temp_buffer_cap = 0;
-
-        ext->big_buffer = nullptr;
-        ext->big_buffer_cap = 0;
-
-        ext->lzma_ctx = nullptr;
-        ext->lz4_ctx = nullptr;
-
-        for (int64_t i = 0; i < 4; i++) {
-            ext->sections[i] = ANVIL_SECTIONS_CLEAR;
-            ext->id_lookup[i] = ID_LOOKUP_CLEAR;
-        }
-
-        lod->__ext = ext;
+        *ext = DH_LOD_EXT_CLEAR;
+        lod->__internal = ext;
     }
 
     *ext_ptr = ext;
     return DH_OK;
 }
 
-#define SIZE 2
-#define NAME _2x2
-#include "dh_lod_mip.c"
-#undef SIZE
-#undef NAME
+void dh_lod_ext_free(struct dh_lod *lod) {
+    if (lod->realloc == nullptr) return;
+    struct dh_lod_ext *ext = lod->__internal;
+    if (ext == nullptr) return;
 
-#define SIZE 4
-#define NAME _4x4
-#include "dh_lod_mip.c"
-#undef SIZE
-#undef NAME
+    if (ext->temp_string != nullptr) lod->realloc(ext->temp_string, 0);
+    if (ext->temp_array != nullptr) lod->realloc(ext->temp_array, 0);
+    if (ext->temp_buffer != nullptr) lod->realloc(ext->temp_buffer, 0);
+    if (ext->big_buffer != nullptr) lod->realloc(ext->big_buffer, 0);
 
-#define SIZE 8
-#define NAME _8x8
-#include "dh_lod_mip.c"
-#undef SIZE
-#undef NAME
+    for (int64_t i = 0; i < 4; i++)
+        anvil_sections_free(&ext->sections[i]);
 
-#define SIZE 16
-#define NAME _16x16
-#include "dh_lod_mip.c"
-#undef SIZE
-#undef NAME
-
-#define SIZE 32
-#define NAME _32x32
-#include "dh_lod_mip.c"
-#undef SIZE
-#undef NAME
-
-#define SIZE 64
-#define NAME _64x64
-#include "dh_lod_mip.c"
-#undef SIZE
-#undef NAME
-
-static
-bool all_have_mip_level(
-    const int64_t mip_level,
-    const int64_t num_lods,
-    struct dh_lod **lods
-) {
-    for (auto i = 0; i < num_lods; i++) {
-        if (lods[i]->mip_level != mip_level) return false;
+    for (int64_t i = 0; i < 4; i++) {
+        if (ext->id_lookup[i].sections != nullptr) {
+            for (int64_t j = 0; j < ext->id_lookup->sections_cap; j++) {
+                lod->realloc(ext->id_lookup[i].sections[j].ids, 0);
+            }
+            lod->realloc(ext->id_lookup[i].sections, 0);
+        }
     }
-    return true;
+
+    if (ext->lzma_ctx != nullptr) compress_free_lzma(&ext->lzma_ctx, lod->realloc);
+    if (ext->lz4_ctx != nullptr) compress_free_lz4(&ext->lz4_ctx, lod->realloc);
+
+    lod->realloc(ext, 0);
+    lod->__internal = nullptr;
 }
 
-static
-bool all_have_min_y(
-    const int64_t min_y,
-    const int64_t num_lods,
-    struct dh_lod **lods
+dh_result dh_lod_merge_mappings(
+    struct dh_lod *dst,
+    struct dh_lod *src,
+    uint32_t **id_mapping_ptr
 ) {
-    for (auto i = 0; i < num_lods; i++) {
-        if (lods[i]->min_y != min_y) return false;
+    if (dst == nullptr || src == nullptr)
+        return DH_ERR_INVALID_ARGUMENT;
+
+    struct dh_lod_ext *dst_ext, *src_ext;
+
+    dh_result res = dh_lod_ext_get(dst, &dst_ext);
+    if (res != DH_OK) return res;
+
+    res = dh_lod_ext_get(src, &src_ext);
+    if (res != DH_OK) return res;
+
+    const size_t id_mapping_len = src->mapping_len * sizeof(uint32_t);
+    if (src_ext->temp_string_cap < id_mapping_len) {
+        char *new = src->realloc(src_ext->temp_string, id_mapping_len);
+        if (new == nullptr) return DH_ERR_ALLOC;
+
+        src_ext->temp_string_cap = id_mapping_len;
+        src_ext->temp_string = new;
     }
-    return true;
+    const auto id_mapping = (uint32_t*)src_ext->temp_string;
+    *id_mapping_ptr = (uint32_t*)src_ext->temp_string;
+
+    for (size_t i = 0; i < src->mapping_len; i++) {
+        res = dh_lod_add_mapping(
+            dst,
+            src->mapping_arr[i],
+            strlen(src->mapping_arr[i]),
+            &id_mapping[i]
+        );
+
+        if (res != DH_OK) return res;
+    }
+
+    return DH_OK;
 }
 
-dh_result dh_lod_mip(
+dh_result dh_lod_add_mapping(
     struct dh_lod *lod,
-    const int64_t mip_level,
-    struct dh_lod **lods,
-    const int64_t num_lods
+    const char *mapping,
+    const size_t mapping_len,
+    uint32_t *id_ptr
 ) {
-    if (
-        lod == nullptr  ||
-        lods == nullptr ||
-        mip_level < 0   ||
-        num_lods < 0
-    ) return DH_ERR_INVALID_ARGUMENT;
+    uint32_t id = 0;
+    while (id < lod->mapping_len && strcmp(lod->mapping_arr[id], mapping) != 0)
+        id++;
 
-    if (
-        num_lods == 2 * 2 &&
-        all_have_mip_level(mip_level - 1, num_lods, lods) &&
-        all_have_min_y(lods[0]->min_y, num_lods, lods)
-    ) {
-        return dh_lod_mip_2x2(lod, lods);
+    if (id == lod->mapping_len) {
+        if (lod->mapping_cap == lod->mapping_len) {
+            const size_t new_cap = lod->mapping_cap == 0 ? 16 : lod->mapping_cap * 2;
+            char **new = lod->realloc(lod->mapping_arr, new_cap * sizeof(char*));
+            if (new == nullptr) return DH_ERR_ALLOC;
+
+            for (size_t i = lod->mapping_cap; i < new_cap; i++) new[i] = nullptr;
+            lod->mapping_arr = new;
+            lod->mapping_cap = new_cap;
+        }
+
+        char *new = lod->realloc(lod->mapping_arr[id], mapping_len);
+        if (new == nullptr) return DH_ERR_ALLOC;
+
+        strncpy(new, mapping, mapping_len);
+        lod->mapping_arr[id] = new;
+        lod->mapping_len++;
     }
 
-    if (
-        num_lods == 4 * 4 &&
-        all_have_mip_level(mip_level - 2, num_lods, lods) &&
-        all_have_min_y(lods[0]->min_y, num_lods, lods)
-    ) {
-        return dh_lod_mip_4x4(lod, lods);
+    *id_ptr = id;
+    return DH_OK;
+}
+
+dh_result dh_lod_ensure(
+    struct dh_lod *lod,
+    const size_t n
+) {
+    if (lod->lod_cap < lod->lod_len + n) {
+        size_t new_cap = (lod->lod_cap << 1) - (lod->lod_cap >> 1);
+        if (new_cap < lod->lod_len + n) new_cap = lod->lod_len + n;
+
+        char *new = lod->realloc(lod->lod_arr, new_cap * sizeof(char));
+        if (new == nullptr) {
+            return DH_ERR_ALLOC;
+        }
+
+        lod->lod_arr = new;
+        lod->lod_cap = new_cap;
     }
 
-    if (
-        num_lods == 8 * 8 &&
-        all_have_mip_level(mip_level - 3, num_lods, lods) &&
-        all_have_min_y(lods[0]->min_y, num_lods, lods)
-    ) {
-        return dh_lod_mip_8x8(lod, lods);
-    }
-
-    if (
-        num_lods == 16 * 16 &&
-        all_have_mip_level(mip_level - 4, num_lods, lods) &&
-        all_have_min_y(lods[0]->min_y, num_lods, lods)
-    ) {
-        return dh_lod_mip_16x16(lod, lods);
-    }
-
-    if (
-        num_lods == 32 * 32 &&
-        all_have_mip_level(mip_level - 5, num_lods, lods) &&
-        all_have_min_y(lods[0]->min_y, num_lods, lods)
-    ) {
-        return dh_lod_mip_32x32(lod, lods);
-    }
-
-    if (
-        num_lods == 64 * 64 &&
-        all_have_mip_level(mip_level - 6, num_lods, lods) &&
-        all_have_min_y(lods[0]->min_y, num_lods, lods)
-    ) {
-        return dh_lod_mip_64x64(lod, lods);
-    }
-
-    return DH_ERR_UNSUPPORTED;
+    return DH_OK;
 }
 
 dh_result dh_lod_serialise_mapping(
-    const struct dh_lod *lod,
+    struct dh_lod *lod,
     char **out,
     size_t *n_bytes
 ) {
-    struct dh_lod_ext *ext = lod->__ext;
+    struct dh_lod_ext *ext;
+    const dh_result res = dh_lod_ext_get(lod, &ext);
+    if (res != DH_OK) return res;
+
     *n_bytes = 0;
 
     #define ensure_buffer(n) \
@@ -268,7 +276,8 @@ dh_result dh_lod_serialise_mapping(
             &ext->temp_string,
             &ext->temp_string_cap,
             &compressed_mapping_len,
-            lod->realloc
+            lod->realloc,
+            1
         );
 
         if (result != 0) {
@@ -291,7 +300,8 @@ dh_result dh_lod_serialise_mapping(
             &ext->temp_string,
             &ext->temp_string_cap,
             &compressed_mapping_len,
-            lod->realloc
+            lod->realloc,
+            1
         );
 
         if (result != LZMA_OK && result != LZMA_STREAM_END) {
@@ -316,9 +326,11 @@ dh_result dh_lod_serialise_mapping(
 dh_result dh_compress(
     struct dh_lod *lod,
     const int64_t compression_mode,
-    double level
+    const double level
 ) {
-    struct dh_lod_ext *ext = lod->__ext;
+    struct dh_lod_ext *ext;
+    const dh_result res = dh_lod_ext_get(lod, &ext);
+    if (res != DH_OK) return res;
 
     if (compression_mode == lod->compression_mode)
         return DH_OK;
@@ -375,7 +387,8 @@ dh_result dh_compress(
             &ext->big_buffer,
             &ext->big_buffer_cap,
             &compressed_lod_len,
-            lod->realloc
+            lod->realloc,
+            level
         );
 
         if (result != 0) {
@@ -409,7 +422,8 @@ dh_result dh_compress(
             &ext->big_buffer,
             &ext->big_buffer_cap,
             &compressed_lod_len,
-            lod->realloc
+            lod->realloc,
+            level
         );
 
         if (result != LZMA_OK && result != LZMA_STREAM_END) {
@@ -442,40 +456,55 @@ dh_result dh_compress(
     }
 }
 
+void dh_lod_trim(
+    struct dh_lod *lod
+) {
+    if (lod == nullptr) return;
+    if (lod->realloc == nullptr) return;
+
+    for (size_t i = lod->mapping_len; i < lod->mapping_cap; i++) if (lod->mapping_arr[i] != nullptr) {
+        lod->realloc(lod->mapping_arr[i], 0);
+        lod->mapping_arr[i] = nullptr;
+    }
+
+    if (lod->mapping_cap > lod->mapping_len) {
+        char **new = lod->realloc(lod->mapping_arr, lod->mapping_len * sizeof(*lod->mapping_arr));
+        if (new != nullptr || lod->mapping_len == 0) {
+            lod->mapping_arr = new;
+            lod->mapping_cap = lod->mapping_len;
+        }
+    }
+
+    if (lod->lod_cap > lod->lod_len) {
+        char *new = lod->realloc(lod->lod_arr, lod->lod_len);
+        if (new != nullptr || lod->lod_len == 0) {
+            lod->lod_arr = new;
+            lod->lod_cap = lod->lod_len;
+        }
+    }
+
+    dh_lod_ext_free(lod);
+}
+
 void dh_lod_free(
     struct dh_lod *lod
 ) {
     if (lod == nullptr) return;
     if (lod->realloc == nullptr) return;
 
-    for (int64_t i = 0; i < lod->mapping_cap; i++) lod->realloc(lod->mapping_arr[i], 0);
-    lod->realloc(lod->mapping_arr, 0);
-
-    lod->realloc(lod->lod_arr, 0);
-
-    struct dh_lod_ext *ext = lod->__ext;
-    if (ext != nullptr) {
-        if (ext->temp_string != nullptr) lod->realloc(ext->temp_string, 0);
-        if (ext->temp_array != nullptr) lod->realloc(ext->temp_array, 0);
-        if (ext->temp_buffer != nullptr) lod->realloc(ext->temp_buffer, 0);
-        if (ext->big_buffer != nullptr) lod->realloc(ext->big_buffer, 0);
-
-        for (int64_t i = 0; i < 4; i++)
-            anvil_sections_free(&ext->sections[i]);
-        
-        for (int64_t i = 0; i < 4; i++) {
-            if (ext->id_lookup[i].sections != nullptr) {
-                for (int64_t j = 0; j < ext->id_lookup->sections_cap; j++) {
-                    lod->realloc(ext->id_lookup[i].sections[j].ids, 0);
-                }
-                lod->realloc(ext->id_lookup[i].sections, 0);
-            }
-        }
-
-        if (ext->lzma_ctx != nullptr) compress_free_lzma(&ext->lzma_ctx, lod->realloc);
-        if (ext->lz4_ctx != nullptr) compress_free_lz4(&ext->lz4_ctx, lod->realloc);
+    for (int64_t i = 0; i < lod->mapping_cap; i++) {
+        if (lod->mapping_arr[i] != nullptr)
+            lod->realloc(lod->mapping_arr[i], 0);
+        lod->mapping_arr[i] = nullptr;
     }
-    
-    lod->__ext = nullptr;
-    lod->realloc = nullptr;
+
+    if (lod->mapping_arr != nullptr)
+        lod->realloc(lod->mapping_arr, 0);
+
+    if (lod->lod_arr != nullptr)
+        lod->realloc(lod->lod_arr, 0);
+
+    dh_lod_ext_free(lod);
+
+    *lod = DH_LOD_CLEAR;
 }

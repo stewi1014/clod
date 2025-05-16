@@ -1,8 +1,5 @@
 #pragma once
 
-#define LOD_GROW(cap, n) ((n) + (cap << 1) - (cap >> 1))
-#define LOD_SHRINK(len, cap) ((cap))
-
 #define DP_BLOCK_LIGHT_MASK   (0xF000000000000000ULL)
 #define DP_SKY_LIGHT_MASK     (0x0F00000000000000ULL)
 #define DP_MIN_Y_MASK         (0x00FFF00000000000ULL)
@@ -38,7 +35,6 @@ static uint64_t dp_read(const char *data) {
     (uint64_t)(uint8_t)data[6] << (1 * 8) |
     (uint64_t)(uint8_t)data[7] << (0 * 8) ;
 }
-
 static void dp_write(char *data, const uint64_t dp) {
     data[0] = (char)(uint8_t)(dp >> (7 * 8) & 0xFF);
     data[1] = (char)(uint8_t)(dp >> (6 * 8) & 0xFF);
@@ -53,6 +49,34 @@ static void dp_write(char *data, const uint64_t dp) {
 int dh_compare_lod_pos(const void *, const void *);
 int dh_compare_strings(const void *, const void *);
 
+/**
+ * adds the mappings from another LOD to this LOD,
+ * merging duplicates and returning an id mapping table
+ * that maps the source IDs to the new destination IDs.
+ *
+ * @param dst the LOD to add the new mappings to.
+ * @param src the LOD who's mappings are to be added.
+ * @param id_mapping_ptr src -> lod id lookup table.
+ * @return
+ */
+dh_result dh_lod_merge_mappings(
+    struct dh_lod *dst,
+    struct dh_lod *src,
+    uint32_t **id_mapping_ptr
+);
+
+dh_result dh_lod_add_mapping(
+    struct dh_lod *lod,
+    const char *mapping,
+    size_t mapping_len,
+    uint32_t *id_ptr
+);
+
+dh_result dh_lod_ensure(
+    struct dh_lod *lod,
+    size_t n
+);
+
 // TODO this is too complex
 struct id_lookup {
     struct id_table {
@@ -64,6 +88,17 @@ struct id_lookup {
 };
 
 #define ID_LOOKUP_CLEAR (struct id_lookup){nullptr, 0}
+
+#define DH_LOD_EXT_CLEAR (struct dh_lod_ext){\
+    nullptr, 0,\
+    nullptr, 0,\
+    nullptr, 0,\
+    nullptr, 0,\
+    nullptr,\
+    nullptr,\
+    {ANVIL_SECTIONS_CLEAR, ANVIL_SECTIONS_CLEAR, ANVIL_SECTIONS_CLEAR, ANVIL_SECTIONS_CLEAR },\
+    {ID_LOOKUP_CLEAR, ID_LOOKUP_CLEAR, ID_LOOKUP_CLEAR, ID_LOOKUP_CLEAR}\
+}
 
 struct dh_lod_ext {
     char *temp_string;
@@ -85,4 +120,10 @@ struct dh_lod_ext {
     struct id_lookup id_lookup[4];
 };
 
-dh_result dh_lod_reset(struct dh_lod *lod, struct dh_lod_ext **ext_ptr);
+dh_result dh_lod_ext_get(struct dh_lod *lod, struct dh_lod_ext **ext_ptr);
+
+#define DH_LODS_NO_LODS INT64_MIN + 1
+#define DH_LODS_NOT_SAME INT64_MIN + 2
+int64_t dh_lods_same_mip_level(struct dh_lod **lods, size_t num_lods);
+int64_t dh_lods_same_min_y(struct dh_lod **lods, size_t num_lods);
+int64_t dh_lods_max_height(struct dh_lod **lods, size_t num_lods);

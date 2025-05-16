@@ -64,7 +64,7 @@
         size_t 📏;
     };
 
-    char **📤(char *📍, size_t *📏) {
+    char **📤(const char *📍, size_t *📏) {
         struct 📑 *📄 = malloc(sizeof(struct 📑));
         if (📄 == nullptr) {
             return nullptr;
@@ -100,7 +100,7 @@
             return nullptr;
         }
 
-        size_t 📨 = fread(📄->🔢, 📄->📏, 1, 🖋️);
+        const size_t 📨 = fread(📄->🔢, 📄->📏, 1, 🖋️);
         if (📨 != 1) {
             free(📄->🔢);
             fclose(🖋️);
@@ -112,7 +112,7 @@
     }
 
     void 📥(char **👉) {
-        struct 📑 *📄 = (struct 📑 *)👉;
+        const auto 📄 = (struct 📑 *)👉;
         if (📄->📏 > 0) {
             free(📄->🔢);
         }

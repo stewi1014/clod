@@ -1,4 +1,5 @@
 #include <lzma.h>
+#include <lz4hc.h>
 #include <lz4frame.h>
 
 #include "compress.h"
@@ -12,12 +13,13 @@ int compress_lz4(
     char **out,
     size_t *out_cap,
     size_t *actual_out,
-    void *(*realloc_f)(void*, size_t)
+    void *(*realloc_f)(void*, size_t),
+    const double level
 ) {
     const auto ctx = (LZ4F_cctx**)ctx_ptr;
 
     LZ4F_preferences_t prefs = {0};
-    prefs.compressionLevel = 2;
+    prefs.compressionLevel = (int)(level * (double)(LZ4HC_CLEVEL_MAX - LZ4HC_CLEVEL_MIN) + (double)LZ4HC_CLEVEL_MIN);
     prefs.frameInfo.blockSizeID = LZ4F_max64KB;
     prefs.frameInfo.blockMode = LZ4F_blockIndependent;
 
@@ -89,7 +91,8 @@ lzma_ret compress_lzma(
     char **out,
     size_t *out_cap,
     size_t *actual_out,
-    void *(*realloc_f)(void*, size_t)
+    void *(*realloc_f)(void*, size_t),
+    const double level
 ) {
     lzma_stream *strm = *ctx_ptr;
     lzma_ret result;
@@ -103,7 +106,7 @@ lzma_ret compress_lzma(
         *strm = (lzma_stream)LZMA_STREAM_INIT;
         *ctx_ptr = strm;
 
-        result = lzma_easy_encoder(strm, 0, LZMA_CHECK_CRC32);
+        result = lzma_easy_encoder(strm, (int)(level * 10), LZMA_CHECK_CRC32);
         if (result != LZMA_OK) {
             return result;
         }

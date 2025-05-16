@@ -17,25 +17,23 @@ int main(int argc, char **argv) {
     struct timespec start, end;
     struct timespec decompress_start, decompress_end;
     struct timespec nbt_visit_start, nbt_visit_end;
-    long decompress_ns = 0, nbt_visit_ns = 0, total_ns;
+    long decompress_ns = 0, nbt_visit_ns = 0;
     size_t size_total = 0, chunk_total = 0;
     timespec_get(&start, TIME_UTC);
     
-    struct anvil_chunk_ctx *chunk_ctx = anvil_chunk_ctx_alloc(NULL);
+    struct anvil_chunk_ctx *chunk_ctx = anvil_chunk_ctx_alloc(nullptr);
     struct anvil_region_iter *iter = anvil_region_iter_new("region", world);
     struct anvil_region region;
-    struct anvil_sections sections = ANVIL_SECTIONS_CLEAR;
+    auto sections = ANVIL_SECTIONS_CLEAR;
 
     int error;
-    while (!(error = anvil_region_iter_next(&region, iter))) {
+    while (!((error = anvil_region_iter_next(&region, iter)))) {
         //printf("(%d, %d) ", region.region_x, region.region_z);
 
-        struct anvil_chunk chunk;
-    
         for (int x = 0; x < 32; x++) for (int z = 0; z < 32; z++) {
             timespec_get(&decompress_start, TIME_UTC);
 
-                chunk = anvil_chunk_decompress(chunk_ctx, &region, x, z);
+                const struct anvil_chunk chunk = anvil_chunk_decompress(chunk_ctx, &region, x, z);
                 if (chunk.data_size == 0) continue;
 
             timespec_get(&decompress_end, TIME_UTC);
@@ -54,9 +52,9 @@ int main(int argc, char **argv) {
                         region.region_x, region.region_z,
                         chunk.chunk_x, i + sections.min_y, chunk.chunk_z,
                         sections.section[i].block_state_palette,
-                        sections.section[i].block_state_indicies,
+                        sections.section[i].block_state_indices,
                         sections.section[i].biome_palette,
-                        sections.section[i].biome_indicies,
+                        sections.section[i].biome_indices,
                         sections.section[i].block_light,
                         sections.section[i].sky_light
                     );
@@ -77,15 +75,14 @@ int main(int argc, char **argv) {
 
     timespec_get(&end, TIME_UTC);
 
-    total_ns = 
-        (end.tv_sec * 1000000000L + end.tv_nsec) -
+    const long total_ns = (end.tv_sec * 1000000000L + end.tv_nsec) -
         (start.tv_sec * 1000000000L + start.tv_nsec);
 
     printf(
-        "injested %0.1fMB of chunk data in %0.3fms: %0.3fMB/s\n",
+        "ingested %0.1fMB of chunk data in %0.3fms: %0.3fMB/s\n",
         (double)size_total / 1000000.0,
         (double)total_ns / 1000000.0,
-        (double)size_total * 1000 / total_ns
+        (double)size_total * 1000 / (double)total_ns
     );
 
     printf(
@@ -97,9 +94,9 @@ int main(int argc, char **argv) {
 
     printf(
         "open_world: %0.3fms/chunk decompressing, %0.3fms/chunk visiting NBT data, %0.3fms/chunk everything else (opening files)\n",
-        (double)decompress_ns / (1000000.0 * chunk_total),
-        (double)nbt_visit_ns / (1000000.0 * chunk_total),
-        (double)(total_ns - decompress_ns - nbt_visit_ns) / (1000000.0 * chunk_total)
+        (double)decompress_ns / (1000000.0 * (double)chunk_total),
+        (double)nbt_visit_ns / (1000000.0 * (double)chunk_total),
+        (double)(total_ns - decompress_ns - nbt_visit_ns) / (1000000.0 * (double)chunk_total)
     );
     
     anvil_chunk_ctx_free(chunk_ctx);

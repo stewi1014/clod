@@ -32,7 +32,7 @@ struct anvil_world *anvil_open(const char *path);
  * 
  * read_dir must return a null-terminated array of null-terminated
  * filenames for files in the given directory, or NULL on error.
- * the filnames and array are passed to the free function when no longer needed.
+ * the filenames and array are passed to the free function when no longer needed.
  * 
  * open_file must return a buffer containing the file's contents,
  * and set size to the size of the buffered data, or NULL on error.
@@ -46,13 +46,19 @@ struct anvil_world *anvil_open(const char *path);
  */
 struct anvil_world *anvil_open_ex(
     const char *path,
+    int scandir(
+        const char *restrict dirp,
+        struct dirent ***restrict namelist,
+        typeof(int (const struct dirent *)) *filter,
+        typeof(int (const struct dirent **, const struct dirent **)) *comparator
+    ),
     char **(*open_file_f)(const char *path, size_t *size),
     void (*close_file_f)(char **file),
     void *(*realloc_f)(void*, size_t)
 );
 
 /**
- * releases resources accociated with the anvil world.
+ * releases resources associated with the anvil world.
  */
 void anvil_close(struct anvil_world *);
 
@@ -69,7 +75,7 @@ void anvil_close(struct anvil_world *);
  * 
  * So an iterator that allows the user to visit every region file is made available.
  * If a particular order of visitation is required then some new iter method/s can be added
- * that facilitate this custom iteration order - but perhapse it's better to reconsider
+ * that facilitate this custom iteration order - but perhaps it's better to reconsider
  * whatever use case it is that depends on iterating over files in a particular order...
  */
 
@@ -137,9 +143,9 @@ struct anvil_chunk anvil_chunk_decompress(
 struct anvil_section {                  // contains pointers to NBT data for a specific section.
     char *end;                          // the end of the section's NBT data, and start of next section.
     char *block_state_palette;          // list NBT payload. list of blocks (compound).
-    uint16_t *block_state_indicies;     // 16x16x16 array of block state indicies. inaccurate if block state palette size is <= 1
+    uint16_t *block_state_indices;     // 16x16x16 array of block state indices. inaccurate if block state palette size is <= 1
     char *biome_palette;                // list NBT payload. list of biomes (string).
-    uint16_t *biome_indicies;           // 4x4x4 array of biome indicies. inaccurate if biome palette size is <= 1
+    uint16_t *biome_indices;           // 4x4x4 array of biome indices. inaccurate if biome palette size is <= 1
     char *block_light;                  // 2048 byte array
     char *sky_light;                    // 2048 byte array
 };
@@ -163,10 +169,10 @@ struct anvil_sections {
 /**
  * parses the sections in the chunk into an array.
  * 
- * the array is sorted in decending y order.
+ * the array is sorted in descending y order.
  * 
  * sections must be ANVIL_SECTIONS_CLEAR, or the result of a previous call to anvil_arse_sections.
- * the caller is responsible foor freeing the array when done.
+ * the caller is responsible for freeing the array when done.
  * 
  * it returns nonzero on failure.
  */
@@ -179,22 +185,22 @@ int anvil_parse_sections_ex(
 /**
  * parses the sections in the chunk into an array.
  * 
- * the array is sorted in decending y order.
+ * the array is sorted in descending y order.
  * 
  * sections must be ANVIL_SECTIONS_CLEAR, or the result of a previous call to anvil_arse_sections.
- * the caller is responsible foor freeing the array when done.
+ * the caller is responsible for freeing the array when done.
  * 
  * it returns nonzero on failure.
  */
 static inline
 int anvil_parse_sections(
     struct anvil_sections *sections,
-    struct anvil_chunk chunk
+    const struct anvil_chunk chunk
 ) {
     return anvil_parse_sections_ex(sections, chunk, NULL);
 }
 
-/** releases resources accociated with the sections. */
+/** releases resources associated with the sections. */
 void anvil_sections_free(
     struct anvil_sections *sections
 );

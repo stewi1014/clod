@@ -18,11 +18,17 @@
 //=======//
 
 struct anvil_world *anvil_open(const char *path) {
-    return anvil_open_ex(path, nullptr, nullptr, nullptr);
+    return anvil_open_ex(path, nullptr, nullptr, nullptr, nullptr);
 }
 
 struct anvil_world *anvil_open_ex(
     const char *path,
+    int scandir(
+        const char *restrict dirp,
+        struct dirent ***restrict namelist,
+        typeof(int (const struct dirent *)) *filter,
+        typeof(int (const struct dirent **, const struct dirent **)) *comparator
+    ),
     char **(*open_file_f)(const char *path, size_t *size),
     void (*close_file_f)(char **file),
     void *(*realloc_f)(void*, size_t)

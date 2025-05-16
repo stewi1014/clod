@@ -36,9 +36,9 @@ int main(int argc, char **argv) {
                     region.region_x, region.region_z,
                     chunk.chunk_x, i + sections.min_y, chunk.chunk_z,
                     sections.section[i].block_state_palette,
-                    sections.section[i].block_state_indicies,
+                    sections.section[i].block_state_indices,
                     sections.section[i].biome_palette,
-                    sections.section[i].biome_indicies,
+                    sections.section[i].biome_indices,
                     sections.section[i].block_light,
                     sections.section[i].sky_light
                 );

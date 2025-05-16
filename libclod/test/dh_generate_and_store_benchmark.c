@@ -90,7 +90,7 @@ int main(int argc, char **argv) {
             // compress LOD
             timespec_get(&compress_start, TIME_UTC);
                 compress_n_bytes += lod.lod_len;
-                result = dh_compress(&lod, DH_DATA_COMPRESSION_LZ4, 0.75);
+                result = dh_compress(&lod, DH_DATA_COMPRESSION_LZ4, 0.0);
                 compressed_n_bytes += lod.lod_len;
             timespec_get(&compress_end, TIME_UTC);
 

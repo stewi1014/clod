@@ -135,7 +135,7 @@ char *nbt_named(char *payload, const char *end,
         return nullptr;
     }
 
-    va_list va = {0};
+    va_list va = {nullptr};
     va_start(va, dest);
 
     while (payload != nullptr) {
