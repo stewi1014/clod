@@ -16,18 +16,6 @@ int compare_tag_name(const void *tag1, const void *tag2) {
     return -1;
 }
 
-static inline
-void increment_be_uint16_t(char *ptr) {
-    uint16_t value =
-        (((uint8_t)ptr[0] << (1 * 8)) & 0xFF) |
-        (((uint8_t)ptr[1] << (0 * 8)) & 0xFF);
-
-    value++;
-
-    ptr[0] = (char)((value >> (1 * 8)) & 0xFF);
-    ptr[1] = (char)((value >> (0 * 8)) & 0xFF);
-}
-
 /**
  * general idea here is to accumulate permutations of biome and blockstate/properties,
  * creating a DH compatable mapping and then updating a minecarft id -> DH id lookup table.
@@ -283,11 +271,8 @@ dh_result dh_from_chunks(
             }
         }
 
-        if (chunk_x == 0) {
-            lod->min_y = ext->sections->min_y * 16;
-        } else if (lod->min_y != ext->sections->min_y * 16) {
-            return DH_ERR_MALFORMED;
-        }
+        lod->height = ext->sections->len * 16;
+        lod->min_y = ext->sections->min_y * 16;
 
         for (int64_t block_x = 0; block_x < 16; block_x++)
         for (int64_t chunk_z = 0; chunk_z < 4; chunk_z++) {
@@ -298,12 +283,7 @@ dh_result dh_from_chunks(
             for (int64_t block_z = 0; block_z < 16; block_z++) {
 
                 ensure_buffer(2 + 8 * sections->len * 16);
-
-                const size_t column_len_off = lod->lod_len;
-                char* cursor = lod->lod_arr + lod->lod_len;
-                cursor[0] = 0;
-                cursor[1] = 0;
-                lod->lod_len += 2;
+                char *cursor     = lod->lod_arr + lod->lod_len + 2;
 
                 if (
                     sections->status != nullptr && (
@@ -375,18 +355,8 @@ dh_result dh_from_chunks(
                         }
 
                         if ((last_datapoint & DP_HEIGHT_MASK) >> DP_HEIGHT_SHIFT > 0) {
-                            lod->has_data = true;
-                            cursor = lod->lod_arr + lod->lod_len;
-                            cursor[0] = (char)((last_datapoint >> (7 * 8)) & 0xFF);
-                            cursor[1] = (char)((last_datapoint >> (6 * 8)) & 0xFF);
-                            cursor[2] = (char)((last_datapoint >> (5 * 8)) & 0xFF);
-                            cursor[3] = (char)((last_datapoint >> (4 * 8)) & 0xFF);
-                            cursor[4] = (char)((last_datapoint >> (3 * 8)) & 0xFF);
-                            cursor[5] = (char)((last_datapoint >> (2 * 8)) & 0xFF);
-                            cursor[6] = (char)((last_datapoint >> (1 * 8)) & 0xFF);
-                            cursor[7] = (char)((last_datapoint >> (0 * 8)) & 0xFF);
-                            lod->lod_len += 8;
-                            increment_be_uint16_t(lod->lod_arr + column_len_off);
+                            dp_write(cursor, last_datapoint);
+                            cursor += 8;
                         }
 
                         last_datapoint =
@@ -397,20 +367,15 @@ dh_result dh_from_chunks(
                 }
 
                 if ((last_datapoint & DP_HEIGHT_MASK) >> DP_HEIGHT_SHIFT > 0) {
-                    lod->has_data = true;
-                    cursor = lod->lod_arr + lod->lod_len;
-                    cursor[0] = (char)((last_datapoint >> (7 * 8)) & 0xFF);
-                    cursor[1] = (char)((last_datapoint >> (6 * 8)) & 0xFF);
-                    cursor[2] = (char)((last_datapoint >> (5 * 8)) & 0xFF);
-                    cursor[3] = (char)((last_datapoint >> (4 * 8)) & 0xFF);
-                    cursor[4] = (char)((last_datapoint >> (3 * 8)) & 0xFF);
-                    cursor[5] = (char)((last_datapoint >> (2 * 8)) & 0xFF);
-                    cursor[6] = (char)((last_datapoint >> (1 * 8)) & 0xFF);
-                    cursor[7] = (char)((last_datapoint >> (0 * 8)) & 0xFF);
-                    lod->lod_len += 8;
-                    increment_be_uint16_t(lod->lod_arr + column_len_off);
+                    dp_write(cursor, last_datapoint);
+                    cursor += 8;
                 }
 
+                const auto count = (cursor - 2 - lod->lod_arr - lod->lod_len) / 8;
+                if (count > 0) lod->has_data = true;
+                (lod->lod_arr + lod->lod_len)[0] = (char)(count >> (1 * 8) & 0xFF);
+                (lod->lod_arr + lod->lod_len)[1] = (char)(count >> (0 * 8) & 0xFF);
+                lod->lod_len = cursor - lod->lod_arr;
             }
         }
     }

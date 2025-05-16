@@ -7,6 +7,38 @@
 #include "compress.h"
 #include "dh_lod.h"
 
+int dh_compare_strings(const void *str1_ptr, const void *str2_ptr) {
+    const char *str1 = *(char**)str1_ptr; const char *str2 = *(char**)str2_ptr;
+    if (str1 == nullptr && str2 == nullptr) return 0;
+    if (str1 == nullptr) return 1;
+    if (str2 == nullptr) return -1;
+
+    return strcmp(str1, str2);
+}
+
+int dh_compare_lod_pos(const void *lod1_ptr, const void *lod2_ptr) {
+    const struct dh_lod *lod1 = (struct dh_lod*)lod1_ptr;
+    const struct dh_lod *lod2 = (struct dh_lod*)lod2_ptr;
+
+    if (lod1 == nullptr && lod2 == nullptr) return 0;
+    if (lod1 == nullptr) return 1;
+    if (lod2 == nullptr) return -1;
+
+    if (lod1->mip_level != lod2->mip_level) {
+        return (int)(lod2->mip_level - lod1->mip_level);
+    }
+
+    if (lod1->x != lod2->x) {
+        return (int)(lod1->x - lod2->x);
+    }
+
+    if (lod1->z != lod2->z) {
+        return (int)(lod1->z - lod2->z);
+    }
+
+    return 0;
+}
+
 dh_result dh_lod_reset(
     struct dh_lod *lod,
     struct dh_lod_ext **ext_ptr

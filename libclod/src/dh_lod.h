@@ -27,6 +27,32 @@
 #define DP_SET_HEIGHT(dp, v)      ((dp &~ DP_HEIGHT_MASK     ) | ((((uint64_t)(v)) << DP_HEIGHT_SHIFT      ) & DP_HEIGHT_MASK     ))
 #define DP_SET_ID(dp, v)          ((dp &~ DP_ID_MASK         ) | ((((uint64_t)(v)) << DP_ID_SHIFT          ) & DP_ID_MASK         ))
 
+static uint64_t dp_read(const char *data) {
+    return
+    (uint64_t)(uint8_t)data[0] << (7 * 8) |
+    (uint64_t)(uint8_t)data[1] << (6 * 8) |
+    (uint64_t)(uint8_t)data[2] << (5 * 8) |
+    (uint64_t)(uint8_t)data[3] << (4 * 8) |
+    (uint64_t)(uint8_t)data[4] << (3 * 8) |
+    (uint64_t)(uint8_t)data[5] << (2 * 8) |
+    (uint64_t)(uint8_t)data[6] << (1 * 8) |
+    (uint64_t)(uint8_t)data[7] << (0 * 8) ;
+}
+
+static void dp_write(char *data, const uint64_t dp) {
+    data[0] = (char)(uint8_t)(dp >> (7 * 8) & 0xFF);
+    data[1] = (char)(uint8_t)(dp >> (6 * 8) & 0xFF);
+    data[2] = (char)(uint8_t)(dp >> (5 * 8) & 0xFF);
+    data[3] = (char)(uint8_t)(dp >> (4 * 8) & 0xFF);
+    data[4] = (char)(uint8_t)(dp >> (3 * 8) & 0xFF);
+    data[5] = (char)(uint8_t)(dp >> (2 * 8) & 0xFF);
+    data[6] = (char)(uint8_t)(dp >> (1 * 8) & 0xFF);
+    data[7] = (char)(uint8_t)(dp >> (0 * 8) & 0xFF);
+}
+
+int dh_compare_lod_pos(const void *, const void *);
+int dh_compare_strings(const void *, const void *);
+
 // TODO this is too complex
 struct id_lookup {
     struct id_table {
@@ -59,7 +85,4 @@ struct dh_lod_ext {
     struct id_lookup id_lookup[4];
 };
 
-dh_result dh_lod_reset(
-    struct dh_lod *lod,
-    struct dh_lod_ext **ext_ptr
-);
+dh_result dh_lod_reset(struct dh_lod *lod, struct dh_lod_ext **ext_ptr);
