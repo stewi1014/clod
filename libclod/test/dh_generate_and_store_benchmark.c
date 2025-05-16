@@ -8,7 +8,7 @@
 #include <anvil.h>
 #include <dh.h>
 
-#define ANVIL_WORLD "/home/stewi/Dev/gitlab.com/distant-horizons-team/distant-horizons/run/client/saves/New World"
+#define ANVIL_WORLD "/home/stewi/minecraft/servers/vanilla/world"
 #define DH_DATABASE "/home/stewi/Dev/gitlab.com/distant-horizons-team/distant-horizons/run/client/saves/New World/data/DistantHorizons.sqlite"
 
 int main(int argc, char **argv) {

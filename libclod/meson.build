@@ -15,7 +15,6 @@ libclod_sources = libclod_headers + [
     'src/dh_lod.c',
     'src/dh_lod.h',
     'src/dh_lod_from_chunks.c',
-    'src/dh_lod_mip.c',
     'src/file.h',
     'src/file.c',
     'src/nbt.c',

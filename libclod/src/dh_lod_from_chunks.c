@@ -231,17 +231,11 @@ dh_result dh_from_chunks(
     const dh_result res = dh_lod_reset(lod, &ext);
     if (res != DH_OK) return res;
 
-    #define ensure_buffer(n) ({\
-        if (lod->lod_cap < lod->lod_len + (n)) {\
-            size_t new_cap = LOD_GROW(lod->lod_cap, n);\
-            char *new = lod->realloc(lod->lod_arr, new_cap);\
-            if (new == nullptr) {\
-                return DH_ERR_ALLOC;\
-            }\
-            lod->lod_arr = new;\
-            lod->lod_cap = new_cap;\
-        }\
-    })
+    lod->mip_level = 0;
+    lod->compression_mode = DH_DATA_COMPRESSION_UNCOMPRESSED;
+    lod->x = chunks->chunk_x / 4;
+    lod->z = chunks->chunk_z / 4;
+    lod->has_data = false;
 
     if (ext->big_buffer_cap > lod->lod_cap) {
         char *tmp = lod->lod_arr;
@@ -253,13 +247,17 @@ dh_result dh_from_chunks(
         ext->big_buffer_cap = tmp_cap;
     }
 
-    lod->mapping_len = 0;
-    lod->lod_len = 0;
-    lod->mip_level = 0;
-    lod->compression_mode = DH_DATA_COMPRESSION_UNCOMPRESSED;
-    lod->x = chunks->chunk_x / 4;
-    lod->z = chunks->chunk_z / 4;
-    lod->has_data = false;
+    #define ensure_buffer(n) ({\
+        if (lod->lod_cap < lod->lod_len + (n)) {\
+            size_t new_cap = LOD_GROW(lod->lod_cap, n);\
+            char *new = lod->realloc(lod->lod_arr, new_cap);\
+            if (new == nullptr) {\
+                return DH_ERR_ALLOC;\
+            }\
+            lod->lod_arr = new;\
+            lod->lod_cap = new_cap;\
+        }\
+    })
 
     for (int64_t chunk_x = 0; chunk_x < 4; chunk_x++) {
 

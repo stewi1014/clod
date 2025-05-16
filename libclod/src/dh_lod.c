@@ -13,6 +13,16 @@ dh_result dh_lod_reset(
 ) {
     if (lod->realloc == nullptr) lod->realloc = realloc;
 
+    lod->x = 0;
+    lod->z = 0;
+    lod->height = 0;
+    lod->min_y = 0;
+    lod->mip_level = 0;
+    lod->compression_mode = 0;
+    lod->mapping_len = 0;
+    lod->lod_len = 0;
+    lod->has_data = false;
+
     struct dh_lod_ext *ext = lod->__ext;
     if (ext == nullptr) {
         ext = lod->realloc(nullptr, sizeof(struct dh_lod_ext));
@@ -45,6 +55,130 @@ dh_result dh_lod_reset(
 
     *ext_ptr = ext;
     return DH_OK;
+}
+
+#define SIZE 2
+#define NAME _2x2
+#include "dh_lod_mip.c"
+#undef SIZE
+#undef NAME
+
+#define SIZE 4
+#define NAME _4x4
+#include "dh_lod_mip.c"
+#undef SIZE
+#undef NAME
+
+#define SIZE 8
+#define NAME _8x8
+#include "dh_lod_mip.c"
+#undef SIZE
+#undef NAME
+
+#define SIZE 16
+#define NAME _16x16
+#include "dh_lod_mip.c"
+#undef SIZE
+#undef NAME
+
+#define SIZE 32
+#define NAME _32x32
+#include "dh_lod_mip.c"
+#undef SIZE
+#undef NAME
+
+#define SIZE 64
+#define NAME _64x64
+#include "dh_lod_mip.c"
+#undef SIZE
+#undef NAME
+
+static
+bool all_have_mip_level(
+    const int64_t mip_level,
+    const int64_t num_lods,
+    struct dh_lod **lods
+) {
+    for (auto i = 0; i < num_lods; i++) {
+        if (lods[i]->mip_level != mip_level) return false;
+    }
+    return true;
+}
+
+static
+bool all_have_min_y(
+    const int64_t min_y,
+    const int64_t num_lods,
+    struct dh_lod **lods
+) {
+    for (auto i = 0; i < num_lods; i++) {
+        if (lods[i]->min_y != min_y) return false;
+    }
+    return true;
+}
+
+dh_result dh_lod_mip(
+    struct dh_lod *lod,
+    const int64_t mip_level,
+    struct dh_lod **lods,
+    const int64_t num_lods
+) {
+    if (
+        lod == nullptr  ||
+        lods == nullptr ||
+        mip_level < 0   ||
+        num_lods < 0
+    ) return DH_ERR_INVALID_ARGUMENT;
+
+    if (
+        num_lods == 2 * 2 &&
+        all_have_mip_level(mip_level - 1, num_lods, lods) &&
+        all_have_min_y(lods[0]->min_y, num_lods, lods)
+    ) {
+        return dh_lod_mip_2x2(lod, lods);
+    }
+
+    if (
+        num_lods == 4 * 4 &&
+        all_have_mip_level(mip_level - 2, num_lods, lods) &&
+        all_have_min_y(lods[0]->min_y, num_lods, lods)
+    ) {
+        return dh_lod_mip_4x4(lod, lods);
+    }
+
+    if (
+        num_lods == 8 * 8 &&
+        all_have_mip_level(mip_level - 3, num_lods, lods) &&
+        all_have_min_y(lods[0]->min_y, num_lods, lods)
+    ) {
+        return dh_lod_mip_8x8(lod, lods);
+    }
+
+    if (
+        num_lods == 16 * 16 &&
+        all_have_mip_level(mip_level - 4, num_lods, lods) &&
+        all_have_min_y(lods[0]->min_y, num_lods, lods)
+    ) {
+        return dh_lod_mip_16x16(lod, lods);
+    }
+
+    if (
+        num_lods == 32 * 32 &&
+        all_have_mip_level(mip_level - 5, num_lods, lods) &&
+        all_have_min_y(lods[0]->min_y, num_lods, lods)
+    ) {
+        return dh_lod_mip_32x32(lod, lods);
+    }
+
+    if (
+        num_lods == 64 * 64 &&
+        all_have_mip_level(mip_level - 6, num_lods, lods) &&
+        all_have_min_y(lods[0]->min_y, num_lods, lods)
+    ) {
+        return dh_lod_mip_64x64(lod, lods);
+    }
+
+    return DH_ERR_UNSUPPORTED;
 }
 
 dh_result dh_lod_serialise_mapping(
