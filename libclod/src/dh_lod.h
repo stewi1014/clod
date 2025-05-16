@@ -85,4 +85,5 @@ struct dh_lod_ext {
     struct id_lookup id_lookup[4];
 };
 
-dh_result dh_lod_reset(struct dh_lod *lod, struct dh_lod_ext **ext_ptr);
+dh_result dh_lod_reset  (struct dh_lod *lod, struct dh_lod_ext **ext_ptr);
+dh_result dh_lod_ext_get(struct dh_lod *lod, struct dh_lod_ext **ext_ptr);

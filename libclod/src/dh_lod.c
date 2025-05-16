@@ -39,22 +39,11 @@ int dh_compare_lod_pos(const void *lod1_ptr, const void *lod2_ptr) {
     return 0;
 }
 
-dh_result dh_lod_reset(
+dh_result dh_lod_ext_get(
     struct dh_lod *lod,
     struct dh_lod_ext **ext_ptr
 ) {
     if (lod->realloc == nullptr) lod->realloc = realloc;
-
-    lod->x = 0;
-    lod->z = 0;
-    lod->height = 0;
-    lod->min_y = 0;
-    lod->mip_level = 0;
-    lod->compression_mode = 0;
-    lod->mapping_len = 0;
-    lod->lod_len = 0;
-    lod->has_data = false;
-
     struct dh_lod_ext *ext = lod->__ext;
     if (ext == nullptr) {
         ext = lod->realloc(nullptr, sizeof(struct dh_lod_ext));
@@ -86,6 +75,24 @@ dh_result dh_lod_reset(
     }
 
     *ext_ptr = ext;
+    return DH_OK;
+}
+
+dh_result dh_lod_reset(
+    struct dh_lod *lod,
+    struct dh_lod_ext **ext_ptr
+) {
+    const dh_result res = dh_lod_ext_get(lod, ext_ptr);
+    if (res != DH_OK) return res;
+    lod->x = 0;
+    lod->z = 0;
+    lod->height = 0;
+    lod->min_y = 0;
+    lod->mip_level = 0;
+    lod->compression_mode = 0;
+    lod->mapping_len = 0;
+    lod->lod_len = 0;
+    lod->has_data = false;
     return DH_OK;
 }
 

@@ -8,55 +8,57 @@
 #define FUNC_NAME(prefix, suffix) __FUNC_NAME(prefix, suffix)
 
 dh_result FUNC_NAME(dh_lod_mip, NAME)(
-    struct dh_lod *lod,
-    struct dh_lod **lods
+    struct dh_lod *dst,
+    struct dh_lod **src
 ) {
     struct dh_lod_ext *ext;
-    const dh_result res = dh_lod_reset(lod, &ext);
+    dh_result res = dh_lod_reset(dst, &ext);
     if (res != DH_OK) return res;
 
-    if (ext->big_buffer_cap > lod->lod_cap) {
-        char *tmp = lod->lod_arr;
-        lod->lod_arr = ext->big_buffer;
+    if (ext->big_buffer_cap > dst->lod_cap) {
+        char *tmp = dst->lod_arr;
+        dst->lod_arr = ext->big_buffer;
         ext->big_buffer = tmp;
 
-        const auto tmp_cap = lod->lod_cap;
-        lod->lod_cap = ext->big_buffer_cap;
+        const auto tmp_cap = dst->lod_cap;
+        dst->lod_cap = ext->big_buffer_cap;
         ext->big_buffer_cap = tmp_cap;
     }
 
-#if SIZE == 16
     char *end[SIZE];
     uint32_t *id_mapping[SIZE];
-    char *cursors[SIZE][SIZE * SIZE];
+#if SIZE < 8
+    char **cursors[SIZE];
 #else
-    constexpr auto end_size = sizeof(char*) * SIZE;
-    constexpr auto id_mapping_size = sizeof(uint32_t*) * SIZE;
-    constexpr auto cursors_size = sizeof(char*) * SIZE * SIZE * SIZE;
-    constexpr auto total_size = end_size + id_mapping_size + cursors_size;
-
-    if (ext->big_buffer_cap < total_size) {
-        char *new = lod->realloc(ext->big_buffer, total_size);
-        if (new == nullptr) {
-            return DH_ERR_ALLOC;
-        }
-
-        ext->big_buffer_cap = total_size;
-        ext->big_buffer = new;
-    }
-
-    char *alloc_cursor = ext->big_buffer;
-
-    auto end = (char**)alloc_cursor; alloc_cursor += end_size;
-    auto id_mapping = (uint32_t)alloc_cursor; alloc_cursor += id_mapping_size;
-    auto cursors = alloc_cursor; alloc_cursor += SIZE * SIZE * SIZE * sizeof(char*);
-
-
-
+    char *cursors[SIZE][SIZE * SIZE];
 #endif
 
     for (int lod_x = 0; lod_x < SIZE; ++lod_x) {
+        for (int lod_z = 0; lod_z < SIZE; ++lod_z) {
+            struct dh_lod *src_lod = src[lod_x * SIZE + lod_z];
 
+            end[lod_z] = src_lod->lod_arr + src_lod->lod_len;
+
+#if SIZE < 8
+            struct dh_lod_ext *src_ext;
+            res = dh_lod_ext_get(src_lod, &src_ext);
+            if (res != DH_OK) return res;
+
+            constexpr auto new_cap = SIZE * SIZE * sizeof(char*);
+            if (src_ext->temp_buffer_cap < new_cap) {
+                char *new = src_lod->realloc(src_ext->temp_buffer, new_cap);
+                if (new == NULL) {
+                    return DH_ERR_ALLOC;
+                }
+
+                src_ext->temp_buffer = new;
+                src_ext->temp_buffer_cap = new_cap;
+            }
+            cursors[lod_z] = (char**)src_ext->temp_buffer;
+#endif
+
+
+        }
     }
 
     return DH_OK;
