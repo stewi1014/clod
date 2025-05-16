@@ -27,6 +27,7 @@
 #define DP_SET_HEIGHT(dp, v)      ((dp &~ DP_HEIGHT_MASK     ) | ((((uint64_t)(v)) << DP_HEIGHT_SHIFT      ) & DP_HEIGHT_MASK     ))
 #define DP_SET_ID(dp, v)          ((dp &~ DP_ID_MASK         ) | ((((uint64_t)(v)) << DP_ID_SHIFT          ) & DP_ID_MASK         ))
 
+// TODO this is too complex
 struct id_lookup {
     struct id_table {
         uint32_t *ids;
@@ -57,3 +58,8 @@ struct dh_lod_ext {
     struct anvil_sections sections[4];
     struct id_lookup id_lookup[4];
 };
+
+dh_result dh_lod_reset(
+    struct dh_lod *lod,
+    struct dh_lod_ext **ext_ptr
+);

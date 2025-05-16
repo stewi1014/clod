@@ -226,7 +226,10 @@ dh_result dh_from_chunks(
     struct dh_lod *lod          // destination LOD.
 ) {
     if (chunks == nullptr || lod == nullptr) return DH_ERR_INVALID_ARGUMENT;
-    if (lod->realloc == nullptr) lod->realloc = realloc;
+
+    struct dh_lod_ext *ext;
+    const dh_result res = dh_lod_reset(lod, &ext);
+    if (res != DH_OK) return res;
 
     #define ensure_buffer(n) ({\
         if (lod->lod_cap < lod->lod_len + (n)) {\
@@ -239,36 +242,6 @@ dh_result dh_from_chunks(
             lod->lod_cap = new_cap;\
         }\
     })
-
-    struct dh_lod_ext* ext = lod->__ext;
-    if (ext == nullptr) {
-        ext = lod->realloc(nullptr, sizeof(struct dh_lod_ext));
-        if (ext == nullptr) {
-            return DH_ERR_ALLOC;
-        }
-
-        ext->temp_string = nullptr;
-        ext->temp_string_cap = 0;
-
-        ext->temp_array = nullptr;
-        ext->temp_array_cap = 0;
-
-        ext->temp_buffer = nullptr;
-        ext->temp_buffer_cap = 0;
-
-        ext->big_buffer = nullptr;
-        ext->big_buffer_cap = 0;
-
-        ext->lzma_ctx = nullptr;
-        ext->lz4_ctx = nullptr;
-
-        for (int64_t i = 0; i < 4; i++) {
-            ext->sections[i] = ANVIL_SECTIONS_CLEAR;
-            ext->id_lookup[i] = ID_LOOKUP_CLEAR;
-        }
-
-        lod->__ext = ext;
-    }
 
     if (ext->big_buffer_cap > lod->lod_cap) {
         char *tmp = lod->lod_arr;

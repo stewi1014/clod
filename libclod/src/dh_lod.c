@@ -2,11 +2,50 @@
 
 #include <anvil.h>
 #include <nbt.h>
+#include <dh.h>
 
 #include "compress.h"
-#include "dh.h"
-
 #include "dh_lod.h"
+
+dh_result dh_lod_reset(
+    struct dh_lod *lod,
+    struct dh_lod_ext **ext_ptr
+) {
+    if (lod->realloc == nullptr) lod->realloc = realloc;
+
+    struct dh_lod_ext *ext = lod->__ext;
+    if (ext == nullptr) {
+        ext = lod->realloc(nullptr, sizeof(struct dh_lod_ext));
+        if (ext == nullptr) {
+            return DH_ERR_ALLOC;
+        }
+
+        ext->temp_string = nullptr;
+        ext->temp_string_cap = 0;
+
+        ext->temp_array = nullptr;
+        ext->temp_array_cap = 0;
+
+        ext->temp_buffer = nullptr;
+        ext->temp_buffer_cap = 0;
+
+        ext->big_buffer = nullptr;
+        ext->big_buffer_cap = 0;
+
+        ext->lzma_ctx = nullptr;
+        ext->lz4_ctx = nullptr;
+
+        for (int64_t i = 0; i < 4; i++) {
+            ext->sections[i] = ANVIL_SECTIONS_CLEAR;
+            ext->id_lookup[i] = ID_LOOKUP_CLEAR;
+        }
+
+        lod->__ext = ext;
+    }
+
+    *ext_ptr = ext;
+    return DH_OK;
+}
 
 dh_result dh_lod_serialise_mapping(
     const struct dh_lod *lod,
