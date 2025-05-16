@@ -343,13 +343,13 @@ dh_result dh_from_chunks(
                 }
 
                 uint64_t last_datapoint =
-                    0xFULL                  << DH_DATAPOINT_SKY_LIGHT_SHIFT |
-                    (sections->len * 16)    << DH_DATAPOINT_MIN_Y_SHIFT     ;
+                    0xFULL                  << DP_SKY_LIGHT_SHIFT |
+                    (sections->len * 16)    << DP_MIN_Y_SHIFT     ;
 
                 uint64_t this_datapoint = 0;
 
                 uint64_t next_datapoint =
-                    1ULL << DH_DATAPOINT_HEIGHT_SHIFT;
+                    1ULL << DP_HEIGHT_SHIFT;
 
                 for (int64_t section_index = sections->len - 1; section_index >= 0; section_index--){
                     const auto section = &sections->section[section_index];
@@ -379,31 +379,31 @@ dh_result dh_from_chunks(
                         this_datapoint = next_datapoint;
 
                         if (section->sky_light != nullptr) {
-                            next_datapoint = DH_DATAPOINT_SET_SKY_LIGHT(
+                            next_datapoint = DP_SET_SKY_LIGHT(
                                 next_datapoint,
                                 (section->sky_light[index / 2] >> ((index & 1) * 4)) & 0xF
                             );
                         }
 
                         if (section->block_light != nullptr) {
-                            next_datapoint = DH_DATAPOINT_SET_BLOCK_LIGHT(
+                            next_datapoint = DP_SET_BLOCK_LIGHT(
                                 next_datapoint,
                                 (section->block_light[index / 2] >> ((index & 1) * 4)) & 0xF
                             );
                         } else {
-                            next_datapoint = DH_DATAPOINT_SET_BLOCK_LIGHT(next_datapoint, 0);
+                            next_datapoint = DP_SET_BLOCK_LIGHT(next_datapoint, 0);
                         }
 
                         const auto id = id_table[biome * block_state_count + block_state];
-                        if ((last_datapoint & DH_DATAPOINT_ID_MASK) >> DH_DATAPOINT_ID_SHIFT == id) {
+                        if ((last_datapoint & DP_ID_MASK) >> DP_ID_SHIFT == id) {
                             last_datapoint +=
-                                ((uint64_t)1 << DH_DATAPOINT_HEIGHT_SHIFT) +
-                                ((uint64_t)-1 << DH_DATAPOINT_MIN_Y_SHIFT);
+                                ((uint64_t)1 << DP_HEIGHT_SHIFT) +
+                                ((uint64_t)-1 << DP_MIN_Y_SHIFT);
 
                             continue;
                         }
 
-                        if ((last_datapoint & DH_DATAPOINT_HEIGHT_MASK) >> DH_DATAPOINT_HEIGHT_SHIFT > 0) {
+                        if ((last_datapoint & DP_HEIGHT_MASK) >> DP_HEIGHT_SHIFT > 0) {
                             lod->has_data = true;
                             cursor = lod->lod_arr + lod->lod_len;
                             cursor[0] = (char)((last_datapoint >> (7 * 8)) & 0xFF);
@@ -419,13 +419,13 @@ dh_result dh_from_chunks(
                         }
 
                         last_datapoint =
-                            this_datapoint                                                              |
-                            (uint64_t)(section_index * 16 + block_y)  << DH_DATAPOINT_MIN_Y_SHIFT       |
-                            (uint64_t)id                              << DH_DATAPOINT_ID_SHIFT          ;
+                            this_datapoint                                              |
+                            (uint64_t)(section_index * 16 + block_y)  << DP_MIN_Y_SHIFT |
+                            (uint64_t)id                              << DP_ID_SHIFT    ;
                     }
                 }
 
-                if ((last_datapoint & DH_DATAPOINT_HEIGHT_MASK) >> DH_DATAPOINT_HEIGHT_SHIFT > 0) {
+                if ((last_datapoint & DP_HEIGHT_MASK) >> DP_HEIGHT_SHIFT > 0) {
                     lod->has_data = true;
                     cursor = lod->lod_arr + lod->lod_len;
                     cursor[0] = (char)((last_datapoint >> (7 * 8)) & 0xFF);
