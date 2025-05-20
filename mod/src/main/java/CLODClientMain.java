@@ -1,4 +1,4 @@
-package link.lenqua.clod;
+package clod;
 
 public abstract class CLODClientMain {
 

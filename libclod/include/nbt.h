@@ -1,5 +1,10 @@
 /**
- * nbt.h
+ *
+ * @defgroup nbt nbt.h
+ * @brief NBT visiting and parsing
+ *
+ * @{
+ * @file nbt.h
  * 
  * Aims to make it straightforward to operate on serialised NBT data, but does not offer any intermediate representation of NBT data.
  * 
@@ -19,20 +24,37 @@
 #include <string.h>
 
 #ifdef __GNUC__
+
+/// @private
 #define __nbt_nonnull(...) __attribute__((nonnull(__VA_ARGS__)))
+
+/// @private
 #define __nbt_nonnull_size(str, size) __attribute__((nonnull_if_nonzero(str, size)))
+
 #else
+
+/// @private
 #define __nbt_nonnull(...)
+
+/// @private
 #define __nbt_nonnull_size(str, size)
+
 #endif
 
 // disable asserts in release builds.
 #ifndef NDEBUG
+
+/// @private
 #define __nbt_assert(expr) assert(expr)
+
 #else
+
+/// @private
 #define __nbt_assert(expr)
+
 #endif
 
+/// @private
 #define __nbt_has_data(ptr, end, size) ((size) >= 0 && ((char*)(end) == nullptr || (ptr) <= ((char*)(end)-(size))))
 
 
@@ -518,3 +540,7 @@ char *nbt_named(char *payload, const char *end,
     const char *name, size_t name_size, int type, void *dest,
     ...
 );
+
+/**
+ * @}
+ */

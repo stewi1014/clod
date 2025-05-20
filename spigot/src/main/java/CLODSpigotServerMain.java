@@ -1,4 +1,6 @@
-import link.lenqua.clod.CLODServerMain;
+package clod;
+
+import clod.CLODServerMain;
 
 public class CLODSpigotServerMain extends CLODServerMain {
 }

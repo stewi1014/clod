@@ -3,6 +3,7 @@
 #include <assert.h>
 #include <string.h>
 #include <stdbit.h>
+#include <stdio.h>
 
 #include <libdeflate.h>
 

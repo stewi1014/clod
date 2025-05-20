@@ -1,4 +1,6 @@
-import link.lenqua.clod.CLODClientMain;
+package clod;
+
+import clod.CLODClientMain;
 import net.neoforged.fml.common.Mod;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.fml.ModContainer;

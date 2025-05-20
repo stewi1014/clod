@@ -1,4 +1,6 @@
-import link.lenqua.clod.CLODClientMain;
+package clod;
+
+import clod.CLODClientMain;
 
 public class CLODFabricClientMain extends CLODClientMain {
 }

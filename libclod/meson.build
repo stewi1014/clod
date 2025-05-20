@@ -1,5 +1,6 @@
 libclod_headers = [
     'include/anvil.h',
+    'include/clod.h',
     'include/dh.h',
     'include/lod.h',
     'include/nbt.h',

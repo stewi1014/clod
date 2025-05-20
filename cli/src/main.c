@@ -1,3 +1,11 @@
+/**
+ * @defgroup clod clod
+ * @brief CLI tool
+ *
+ * @addtogroup
+ * @{
+ */
+
 #include <stdio.h>
 
 #include <lod.h>
@@ -8,3 +16,7 @@
 int main(int argc, char **argv) {
     list_dir("/home/stewi/Dev/gitlab.com/distant-horizons-team/distant-horizons/run/client/saves/New World/region/");
 };
+
+/**
+ * @}
+ */

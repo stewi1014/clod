@@ -113,6 +113,10 @@ dh_result dh_lod_mip(
         return dh_lod_mip_32x32(lod, lods);
     }
 
+    /**
+     *
+     */
+
     if (
         num_lods == 64 * 64 &&
         all_have_mip_level(mip_level - 6, num_lods, lods) &&
