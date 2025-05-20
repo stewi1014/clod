@@ -1,7 +1,9 @@
 /**
- * dh.h
- * 
- * Methods for dealing with DH LODs.
+* @defgroup dh dh.h
+* @brief Distant Horizons
+ *
+ * @{
+ * @file dh.h
  */
 #pragma once
 #include <stddef.h>
@@ -140,3 +142,7 @@ struct dh_db;
 struct dh_db *dh_db_open(const char *path);
 void dh_db_close(struct dh_db *db);
 int dh_db_store(const struct dh_db *db, struct dh_lod *lod);
+
+/**
+ * @}
+ */

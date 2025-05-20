@@ -1,6 +1,8 @@
 build
+docs
 .gradle
 .idea
+.fleet
 .vscode
 run
 build_all_targets.sh

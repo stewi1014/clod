@@ -1,4 +1,4 @@
-# clod
+# clod {#mainpage}
 
 _A lump or mass especially of earth or clay_
 

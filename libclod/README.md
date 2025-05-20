@@ -1,22 +1,20 @@
-# libclod
+@page Libclod Libclod
+# Libclod
 
 Library for dealing with minecraft data - including LODs.
 
-This library will probably never be used by anyone except myself,
-and the world is probably better off for it.
-Having said that, it isn't *terrible*, and offers some useful functionality.
+- @link anvil.h #include<anvil.h> @endlink for reading/writing to the world.
+- @link dh.h #include<dh.h> @endlink to generate LODs for DistantHorizons.
+- @link nbt.h #include<nbt.h> @endlink for parsing NBT data.
 
 If you're using a higher level language and need some things done *really* fast,
-or you're writing C that needs to deal with minecarft data and don't feel like DIY-ing
+or you're writing C that needs to deal with minecraft data and don't feel like DIY-ing
 the multi-faceted technology stack that is the minecraft save file,
-I'd recomend at least using this library as a reference.
+I'd recommend at least using this library as a reference.
 
-## Structure
+## Development
 
-- [`#include <anvil.h>`](./include/anvil.h) reads the anvil world format.
-- [`#include <dh.h>`](./include/dh.h) deals with DistantHorizons LODs and databases.
-- [`#include <lod.h>`](./include/lod.h) for LOD generating.
-- [`#include <nbt.h>`](./include/nbt.h) gives you NBT parsing helpers.
+Generating resource sources can be done with `gradle generate`.
 
 ## Non-Goals
 
@@ -25,15 +23,15 @@ that slows both you and the program down. The non-goals of this project are note
 
 - **multithreading**: if the library is so slow it requires multithreading then it has become too complex.
 - **caches**: websites need cache because users are a source of random behaviour - if code is generating random behaviour it needs fixing.
-- **IO**: hardcoding IO implementations implies a better understanding of the IO device than the user - which is arrogant and rarely correct.
+- **wrapping stdlib methods**: users are perfectly able to use the standard library - add functionality, don't wrap it.
 - **pools**: correct resource management should be implemented instead of connection pools, buffer pools or any other kind of pool.
 - **platform independence**: if your char is 9-bits long, pointers are tuples and numbers are middle-endian - I'm sorry, but no.
-- **fixing data**: garbage in -> garbage out. data parsing should never segfault on bad data however. garbage in ->X segfault out.
+- **fixing data**: garbage in -> garbage out. data parsing should never segfault on bad data, however. garbage in ->X segfault out.
 - **bad abstractions**: e.g. 'get_chunk(x,y)' is a bad abstraction because it implies speed and simplicity - the opposite of the implementation which is complex and IO-heavy.
 
 ## Headers
 
-### [anvil.h](./include/anvil.h)
+### @link anvil.h @endlink
 
 Methods for reading the anvil world format.
 
@@ -102,7 +100,7 @@ int main(int argc, char **argv) {
 
 ```
 
-### [dh.h](./include/dh.h)
+### @link dh.h @endlink
 
 Methods for dealing with DH LODs
 
@@ -168,9 +166,7 @@ int main(int argc, char **argv) {
 
 ```
 
-### [lod.h](./include/lod.h)
-
-### [nbt.h](./include/nbt.h)
+### @link nbt.h @endlink
 
 Very *very* fast NBT parsing library: ~5µs/chunk to traverse all chunk data in a world.
 It does not offer any intermediate representation of NBT data.
@@ -235,10 +231,8 @@ Make sure these are findable by meson.
 
 - libdeflate
 - liblz4
-- libzstd
 - liblzma
 - sqlite3
-- libpq
 
 # References
 
