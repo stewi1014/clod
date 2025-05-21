@@ -1,7 +1,9 @@
+
 tasks.register('configureMeson', Exec) {
     group = 'meson'
 
-    inputs.files 'meson.build', 'cli/meson.build', 'libclod/meson.build'
+    workingDir = rootProject.projectDir
+    inputs.files 'cli/meson.build'
     outputs.files 'build/compile_commands.json'
 
     commandLine('meson', 'setup', 'build')
@@ -11,8 +13,9 @@ tasks.register('buildMeson', Exec) {
     group = 'meson'
     dependsOn('configureMeson')
 
-    inputs.files fileTree('cli/*'), fileTree('libclod/*')
-    outputs.files 'build/cli/clod', 'build/libclod/libclod.so.*.*'
+    workingDir = rootProject.projectDir
+    inputs.files  fileTree('generated/*'), fileTree('include/*'), fileTree('src/*')
+    outputs.files 'build/cli/clod'
 
     commandLine('meson', 'compile', '-C', 'build')
 }

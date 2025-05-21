@@ -39,7 +39,7 @@ def target(String subProjectDirName, String target) {
     subProject.setProjectDir(subProjectDirFile)
 }
 
-include 'mod', 'api'
+include 'mod', 'api', 'libclod', 'cli'
 
 target('fabric', '1.21.5')
 target('fabric', '1.21.4')

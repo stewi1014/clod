@@ -272,34 +272,6 @@ void anvil_region_iter_close(
     region_iter->alloc->free(region_iter);
 }
 
-char *anvil_region_file_path(
-    struct anvil_region_dir *region_dir,
-    const int64_t region_x,
-    const int64_t region_z
-) {
-try_again:
-    const int name_len = snprintf(
-        region_dir->tmp_string,
-        region_dir->tmp_string_cap,
-        "%s%sr.%ld.%ld.%s",
-        region_dir->path,
-        PATH_SEP,
-        region_x,
-        region_z,
-        region_dir->region_extension
-    );
-
-    if (name_len >= region_dir->tmp_string_cap) {
-        char *new = region_dir->alloc->realloc(region_dir->tmp_string, name_len);
-        if (new == nullptr) return nullptr;
-        region_dir->tmp_string = new;
-        region_dir->tmp_string_cap = name_len;
-        goto try_again;
-    }
-
-    return region_dir->tmp_string;
-}
-
 anvil_result anvil_region_open_file(
     struct anvil_region_file **region_file_out,
     struct anvil_region_dir *region_dir,
@@ -308,12 +280,29 @@ anvil_result anvil_region_open_file(
 ) {
     if (region_file_out == nullptr) return ANVIL_INVALID_ARGUMENT;
 
-    const char *name = anvil_region_file_path(region_dir, region_x, region_z);
-    if (name == nullptr) return ANVIL_ALLOC_FAILED;
+try_again:
+    const int path_len = anvil_filepath(
+        region_dir->tmp_string,
+        region_dir->tmp_string_cap,
+        region_dir->path,
+        "r",
+        region_x,
+        region_z,
+        region_dir->region_extension
+    );
+
+    if (path_len >= region_dir->tmp_string_cap) {
+        char *new = region_dir->alloc->realloc(region_dir->tmp_string, path_len);
+        if (new == nullptr) return ANVIL_ALLOC_FAILED;
+
+        region_dir->tmp_string = new;
+        region_dir->tmp_string_cap = path_len;
+        goto try_again;
+    }
 
     return anvil_region_file_open(
         region_file_out,
-        name,
+        region_dir->tmp_string,
         region_dir->chunk_extension,
         region_dir->alloc
     );
@@ -324,10 +313,27 @@ anvil_result anvil_region_remove(
     const int64_t region_x,
     const int64_t region_z
 ) {
-    const char *region_file_path = anvil_region_file_path(region_dir, region_x, region_z);
-    if (region_file_path == nullptr) return ANVIL_ALLOC_FAILED;
+try_region_name_again:
+    int path_len = anvil_filepath(
+        region_dir->tmp_string,
+        region_dir->tmp_string_cap,
+        region_dir->path,
+        "r",
+        region_x,
+        region_z,
+        region_dir->region_extension
+    );
 
-    int ret = remove(region_file_path);
+    if (path_len >= region_dir->tmp_string_cap) {
+        char *new = region_dir->alloc->realloc(region_dir->tmp_string, path_len);
+        if (new == nullptr) return ANVIL_ALLOC_FAILED;
+
+        region_dir->tmp_string = new;
+        region_dir->tmp_string_cap = path_len;
+        goto try_region_name_again;
+    }
+
+    int ret = remove(region_dir->tmp_string);
     if (ret != 0 && errno != ENOENT) {
         return ANVIL_IO_ERROR;
     }
@@ -344,20 +350,34 @@ anvil_result anvil_region_remove(
     //
     // I mean goodness gracious, if the region file is corrupted *this* is probably
     // the method one would use to try to resolve the problem.
-    // we really ought to make sure this operation can succeed.
+    // we really ought to make sure this operation succeeds.
 
     for (int64_t chunk_x = 0; chunk_x < 32; chunk_x++)
     for (int64_t chunk_z = 0; chunk_z < 32; chunk_z++) {
-
-
-        char *chunk_file_path = anvil_chunk_file_path(
-            region_dir, region_x * 32 + chunk_x, region_z * 32 + chunk_z
+    try_chunk_name_again:
+        path_len = anvil_filepath(
+            region_dir->tmp_string,
+            region_dir->tmp_string_cap,
+            region_dir->path,
+            "r",
+            region_x,
+            region_z,
+            region_dir->region_extension
         );
 
-        ret = remove(chunk_file_path);
+        if (path_len >= region_dir->tmp_string_cap) {
+            char *new = region_dir->alloc->realloc(region_dir->tmp_string, path_len);
+            if (new == nullptr) return ANVIL_ALLOC_FAILED;
+
+            region_dir->tmp_string = new;
+            region_dir->tmp_string_cap = path_len;
+            goto try_chunk_name_again;
+        }
+
+        ret = remove(region_dir->tmp_string);
         if (ret != 0 && errno != ENOENT) {
             if (anvil_messages != nullptr) {
-                fprintf(anvil_messages, "deleting chunk file: %s (%s)\n", strerror(errno), chunk_file_path);
+                fprintf(anvil_messages, "deleting chunk file: %s (%s)\n", strerror(errno), region_dir->tmp_string);
             }
             return ANVIL_IO_ERROR;
         }

@@ -35,39 +35,58 @@ typedef struct {
 /** the default allocator. if a null custom allocator is given, this is what is used. */
 static const anvil_allocator default_anvil_allocator = {malloc, calloc, free, realloc};
 
+#ifdef _WIN32
+#define ANVIL_PATH_SEPERATOR "\\"
+#else
+#define ANVIL_PATH_SEPERATOR "/"
+#endif
+
 /**
  * place where messages are logged.
  *
  * messages are sparingly used, and only emitted with information that
- * both cannot be completely described by a return value
- * and is relevant to an end user.
- *
- * for example,
+ * the library has no other recourse for handling, and is relevant to an end user.
  *
  * can be set to null to disable messages.
  */
 static FILE *anvil_messages = stderr;
 
 /**
+ * macro for creating file names for a given coordinate using snprintf.
+ *
+ * @param out buffer to write thr string into.
+ * @param out_len maximum number of bytes to write into out.
+ * @param path directory path to prepend.
+ * @param prefix filename prefix. e.g. "r", "c".
+ * @param x x coordinate.
+ * @param z z coordinate.
+ * @param extension file name extension.
+ */
+#define anvil_filepath(out, out_len, path, prefix, x, z, extension) \
+    snprintf(out, out_len, "%s" ANVIL_PATH_SEPERATOR prefix ".%ld.%ld.%s", path, x, z, extension);
+
+/**
  * used to describe the result of operations
  */
 typedef enum anvil_result_e {
-    ANVIL_OK                    = 1,  /** operation was successful. */
-    ANVIL_INSUFFICIENT_SPACE    = 2,  /** the given buffer is not large enough to hold the requested data. */
-    ANVIL_MALFORMED             = 3,  /** input data is malformed. */
-    ANVIL_IO_ERROR              = 4,  /** an IO error occurred, and errno should be set. */
-    ANVIL_INVALID_ARGUMENT      = 5,  /** argument to method was invalid. */
-    ANVIL_ALLOC_FAILED          = 6,  /** memory allocation failed. */
-    ANVIL_LOCKED                = 7,  /** the resource is locked. */
-    ANVIL_NOT_EXIST             = 8,  /** the resource does not exist. */
-    ANVIL_NEXT                  = 9,  /** this part of a multipart operation was successful. more calls can be made. */
-    ANVIL_DONE                  = 10, /** the multipart operation is finished. no more calls should be made. */
-    ANVIL_DISK_FULL             = 11, /** storage device is full. */
-    ANVIL_INVALID_NAME          = 12, /** name is not valid. */
+    ANVIL_OK                      = 1,  /** operation was successful. */
+    ANVIL_INSUFFICIENT_SPACE      = 2,  /** the given buffer is not large enough to hold the requested data. */
+    ANVIL_MALFORMED               = 3,  /** input data is malformed. */
+    ANVIL_IO_ERROR                = 4,  /** an IO error occurred, and errno should be set. */
+    ANVIL_INVALID_ARGUMENT        = 5,  /** argument to method was invalid. */
+    ANVIL_ALLOC_FAILED            = 6,  /** memory allocation failed. */
+    ANVIL_LOCKED                  = 7,  /** the resource is locked. */
+    ANVIL_NOT_EXIST               = 8,  /** the resource does not exist. */
+    ANVIL_NEXT                    = 9,  /** this part of a multipart operation was successful. more calls can be made. */
+    ANVIL_DONE                    = 10, /** the multipart operation is finished. no more calls should be made. */
+    ANVIL_DISK_FULL               = 11, /** storage device is full. */
+    ANVIL_INVALID_NAME            = 12, /** name is not valid. */
+    ANVIL_UNSUPPORTED_COMPRESSION = 13, /** compression regime is not supported. */
 } anvil_result;
 
 static const char* anvil_result_string(const anvil_result res) {
     switch (res) {
+    case 0: return "Uninitialised Result";
     case ANVIL_OK: return "Ok";
     case ANVIL_INSUFFICIENT_SPACE: return "Insufficient space";
     case ANVIL_MALFORMED: return "Malformed";
@@ -80,8 +99,9 @@ static const char* anvil_result_string(const anvil_result res) {
     case ANVIL_DONE: return "Done";
     case ANVIL_DISK_FULL: return "Disk full";
     case ANVIL_INVALID_NAME: return "Invalid name";
+    case ANVIL_UNSUPPORTED_COMPRESSION: return "Unsupported compression";
+    default: return "Invalid result";
     }
-    __builtin_unreachable();
 }
 
 //=============//
@@ -278,23 +298,6 @@ void anvil_region_iter_close(
 );
 
 /**
- * get the full path of a region file from coordinates.
- * @param region_dir handle to the region directory.
- * @param region_x region x coordinate
- * @param region_z region z coordinate
- * @return full path to the region file for the given coordinates.
- *  it returns null on allocation failure.
- *
- * @note the returned string is owned by the region directory,
- *  and is only valid until the next call.
- */
-char *anvil_region_file_path(
-    struct anvil_region_dir *region_dir,
-    int64_t region_x,
-    int64_t region_z
-);
-
-/**
  * parses position from a region file or chunk file name.
  * this method does not attempt to rigorously validate input names.
  *
@@ -393,27 +396,7 @@ anvil_result anvil_region_file_open(
 );
 
 /**
- * get the full path of a chunk file given coordinates.
- * region files can sometimes describe chunk data as being external,
- * and in those cases the chunk files take on this name.
- *
- * @param region_file handle to the region file.
- * @param chunk_x chunk x coordinate.
- * @param chunk_z chunk z coordinate.
- * @return full path to the chunk file for the given coordinates.
- *  it returns null on allocation failure.
- *
- * @note the returned string is owned by the region file,
- *  and is only valid until the next call.
- */
-char *anvil_chunk_file_path(
-    struct anvil_region_file *region_file,
-    int64_t chunk_x,
-    int64_t chunk_z
-);
-
-/**
- * get the last modification time of a chunk.
+ * Get the last modification time of a chunk.
  * @param[in] region_file the region file. returns 0 if region_file is null.
  * @param[in] chunk_x chunk x coordinate. does not need to be relative to region coordinates.
  * @param[in] chunk_z chunk z coordinate. does not need to be relative to region coordinates.
@@ -427,20 +410,43 @@ uint32_t anvil_chunk_mtime(
 );
 
 /**
- * read chunk data.
- * @param[out] out output buffer where chunk data will be read into.
- * @param[in] out_cap size of the output buffer.
- * @param[out] out_len size of data read into the output buffer.
- * @param[in] chunk_x chunk x coordinate. does not need to be relative to region coordinates.
- * @param[in] chunk_z chunk z coordinate. does not need to be relative to region coordinates.
- * @param[in] region_file file to read chunk data from.
+ * Read chunk data.
  *
- * @retval ANVIL_OK on success.
- * @retval ANVIL_INSUFFICIENT_SPACE if out is too small to hold the chunk data.
- * @retval ANVIL_MALFORMED the region file is corrupted.
- * @retval ANVIL_IO_ERROR an IO error occurred and errno is set.
+ * Due to minecraft's unfortunate decision to incorrectly handle compression,
+ * the decompressed size is *not* known ahead of time.
+ * It also therefore follows that overflowing the decompressed buffer is *not* an error,
+ * and instead needs to be explicitly handled under normal operation.
  *
- * @note use of the region file other than closing it after an error will return ANVIL_INVALID_ARGUMENT in this and other methods.
+ * Retrying this method in a loop when it returns ANVIL_INSUFFICIENT_SPACE and growing the
+ * output buffer (to out_len is a good guess) is one of the few terrible approaches to resolving this shortcoming.
+ *
+ * Another terrible approach is to mmap the maximum theoretical size - an often truly huge region of virtual memory,
+ * and let the operating system figure out what to do with your data.
+ *
+ * At the very least minecraft *does* use a checksum to validate the compressed data
+ * as the ZLIB/GZIP format internally uses one, but I doubt that was a conscious decision.
+ *
+ * @param[out] out Output buffer where chunk data will be read into.
+ * @param[in] out_cap Size of the output buffer.
+ * @param[out] out_len (nullable) Size of data read into the output buffer.
+ *  If ANVIL_INSUFFICIENT_SPACE is returned, out_len is set to the number of bytes that would have been
+ *  read into out if it is known, or a reasonable guess of what the size might be if not.
+ * @param[in] chunk_x Chunk x coordinate. does not need to be relative to region coordinates.
+ * @param[in] chunk_z Chunk z coordinate. does not need to be relative to region coordinates.
+ * @param[in] region_file File to read chunk data from.
+ *
+ * @retval ANVIL_OK On success.
+ * @retval ANVIL_INSUFFICIENT_SPACE If out is too small to hold the chunk data.
+ * @retval ANVIL_MALFORMED The region file is corrupted.
+ * @retval ANVIL_IO_ERROR An IO error occurred and errno is set.
+ * @retval ANVIL_UNSUPPORTED_COMPRESSION The chunk was stored with an unsupported compression regime.
+ *
+ * @note If the chunk contains no data it returns ANVIL_OK and if out_len is not null sets it to 0.
+ *
+ * @note Use of the region file other than closing it after an error will return ANVIL_INVALID_ARGUMENT in this and other methods.
+ *
+ * @note This method will cache buffers and/or files such that a failed read (i.e. due to ANVIL_INSUFFICIENT_SPACE)
+ *  can be quickly continued.
  */
 anvil_result anvil_chunk_read(
     void *restrict out,
@@ -452,9 +458,9 @@ anvil_result anvil_chunk_read(
 );
 
 /**
- * type of compression
+ * Type of compression
  *
- * the unstandardised compression algorithm based on LZ4 that minecraft calls "LZ4" is not supported.
+ * The unstandardised compression algorithm based on LZ4 that minecraft calls "LZ4" is not supported.
  */
 typedef enum anvil_compression_e {
     ANVIL_COMPRESSION_NONE = 3,
@@ -477,7 +483,7 @@ typedef enum anvil_compression_e {
  * @note use of the region file other than closing it after an error will return ANVIL_INVALID_ARGUMENT in this and other methods.
  */
 anvil_result anvil_chunk_write(
-    void *restrict in,
+    const void *restrict in,
     size_t in_len,
     enum anvil_compression compression,
     int64_t chunk_x,

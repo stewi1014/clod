@@ -1,0 +1,66 @@
+/**
+ * this task is responsible for taking files in the resources directory and turning them into
+ * constants
+ */
+tasks.register('generate') {
+    group = 'meson'
+
+    inputs.files fileTree('resources')
+    outputs.files fileTree('generated')
+
+    mkdir('generated')
+    file('generated/index.h').withDataOutputStream { index_header ->
+    file('generated/index.c').withDataOutputStream {index_source ->
+
+        index_header.writeBytes("#pragma once\n")
+
+        fileTree('resources').sort().each {
+            def var_name = it.path.substring(it.path.indexOf("resources") + 10).replaceAll(/[^a-zA-Z0-9_]/, '__')
+            printf("generating " + var_name + " from " + it.path + "\n")
+
+            file('generated/' + var_name + '.c').withDataOutputStream { source ->
+
+                int r, size = 0
+                def buff = new byte[32]
+
+                source.writeBytes("const unsigned char " + var_name + "[] = {\n")
+                it.withDataInputStream { reader ->
+                    while ((r = reader.read(buff)) > 0) {
+                        size += r
+                        source.writeBytes('\t')
+                        for (int i = 0; i < r; i++) {
+                            source.writeBytes(buff[i].toString() + ", ")
+                        }
+                        source.writeBytes('\n')
+                    }
+                }
+                source.writeBytes("};\n")
+
+                index_header.writeBytes("extern const unsigned char " + var_name + "[" + size + "];\n")
+                index_source.writeBytes("#include \"" + var_name + ".c\"\n")
+            }
+        }
+    }
+    }
+}
+
+tasks.register('configure', Exec) {
+    group = 'meson'
+    workingDir = rootProject.projectDir
+
+    inputs.files 'libclod/meson.build'
+    outputs.files 'build/compile_commands.json'
+
+    commandLine('meson', 'setup', 'build')
+}
+
+tasks.register('build', Exec) {
+    group = 'meson'
+    workingDir = rootProject.projectDir
+    dependsOn('configure')
+
+    inputs.files  fileTree('generated/*'), fileTree('include/*'), fileTree('src/*')
+    outputs.files 'build/cli/clod', 'build/libclod/libclod.so.*.*'
+
+    commandLine('meson', 'compile', '-C', 'build')
+}

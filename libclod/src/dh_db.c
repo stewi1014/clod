@@ -5,51 +5,7 @@
 #include <sqlite3.h>
 
 #include "dh.h"
-
-extern unsigned char dh_migrations_0010_sqlite_createInitialDataTables_sql[];
-extern unsigned int dh_migrations_0010_sqlite_createInitialDataTables_sql_len;
-
-extern unsigned char dh_migrations_0020_sqlite_createFullDataSourceV2Tables_sql[];
-extern unsigned int dh_migrations_0020_sqlite_createFullDataSourceV2Tables_sql_len;
-
-extern unsigned char dh_migrations_0030_sqlite_changeTableJournaling_sql[];
-extern unsigned int dh_migrations_0030_sqlite_changeTableJournaling_sql_len;
-
-extern unsigned char dh_migrations_0031_sqlite_useSqliteWalJournaling_sql[];
-extern unsigned int dh_migrations_0031_sqlite_useSqliteWalJournaling_sql_len;
-
-extern unsigned char dh_migrations_0040_sqlite_removeRenderCache_sql[];
-extern unsigned int dh_migrations_0040_sqlite_removeRenderCache_sql_len;
-
-extern unsigned char dh_migrations_0050_sqlite_addApplyToParentIndex_sql[];
-extern unsigned int dh_migrations_0050_sqlite_addApplyToParentIndex_sql_len;
-
-extern unsigned char dh_migrations_0060_sqlite_createChunkHashTable_sql[];
-extern unsigned int dh_migrations_0060_sqlite_createChunkHashTable_sql_len;
-
-extern unsigned char dh_migrations_0070_sqlite_createBeaconBeamTable_sql[];
-extern unsigned int dh_migrations_0070_sqlite_createBeaconBeamTable_sql_len;
-
-extern unsigned char dh_migrations_0080_sqlite_addApplyToChildrenColumn_sql[];
-extern unsigned int dh_migrations_0080_sqlite_addApplyToChildrenColumn_sql_len;
-
-extern unsigned char dh_constants_compression_mode[];
-extern unsigned dh_constants_compression_mode_len;
-
-extern unsigned char dh_constants_compression_mode_lz4[];
-extern unsigned dh_constants_compression_mode_lz4_len;
-
-extern unsigned char dh_constants_compression_mode_lzma[];
-extern unsigned dh_constants_compression_mode_lzma_len;
-
-extern unsigned char dh_constants_gen_step[];
-extern unsigned dh_constants_gen_step_len;
-
-extern unsigned char dh_constants_gen_step_lz4[];
-extern unsigned dh_constants_gen_step_lz4_len;
-
-extern unsigned char dh_constants_gen_step_lzma[];
-extern unsigned dh_constants_gen_step_lzma_len;
+#include "generated/index.h"
 
 int run_migration(sqlite3 *db, char *name, const char *sql, size_t sql_size) {
     sqlite3_stmt *stmt;
@@ -161,56 +117,56 @@ struct dh_db *dh_db_open(const char *path) {
 
     MIGRATION(
         "sqlScripts/0010-sqlite-createInitialDataTables.sql",
-        dh_migrations_0010_sqlite_createInitialDataTables_sql,
-        dh_migrations_0010_sqlite_createInitialDataTables_sql_len
+        dh_migrations__0010__sqlite__createInitialDataTables__sql,
+        sizeof(dh_migrations__0010__sqlite__createInitialDataTables__sql)
     );
 
     MIGRATION(
         "sqlScripts/0020-sqlite-createFullDataSourceV2Tables.sql",
-        dh_migrations_0020_sqlite_createFullDataSourceV2Tables_sql,
-        dh_migrations_0020_sqlite_createFullDataSourceV2Tables_sql_len
+        dh_migrations__0020__sqlite__createFullDataSourceV2Tables__sql,
+        sizeof(dh_migrations__0020__sqlite__createFullDataSourceV2Tables__sql)
     );
 
     MIGRATION(
         "sqlScripts/0030-sqlite-changeTableJournaling.sql",
-        dh_migrations_0030_sqlite_changeTableJournaling_sql,
-        dh_migrations_0030_sqlite_changeTableJournaling_sql_len
+        dh_migrations__0030__sqlite__changeTableJournaling__sql,
+        sizeof(dh_migrations__0030__sqlite__changeTableJournaling__sql)
     );
 
     MIGRATION(
         "sqlScripts/0031-sqlite-useSqliteWalJournaling.sql",
-        dh_migrations_0031_sqlite_useSqliteWalJournaling_sql,
-        dh_migrations_0031_sqlite_useSqliteWalJournaling_sql_len
+        dh_migrations__0031__sqlite__useSqliteWalJournaling__sql,
+        sizeof(dh_migrations__0031__sqlite__useSqliteWalJournaling__sql)
     );
 
     MIGRATION(
         "sqlScripts/0040-sqlite-removeRenderCache.sql",
-        dh_migrations_0040_sqlite_removeRenderCache_sql,
-        dh_migrations_0040_sqlite_removeRenderCache_sql_len
+        dh_migrations__0040__sqlite__removeRenderCache__sql,
+        sizeof(dh_migrations__0040__sqlite__removeRenderCache__sql)
     );
 
     MIGRATION(
         "sqlScripts/0050-sqlite-addApplyToParentIndex.sql",
-        dh_migrations_0050_sqlite_addApplyToParentIndex_sql,
-        dh_migrations_0050_sqlite_addApplyToParentIndex_sql_len
+        dh_migrations__0050__sqlite__addApplyToParentIndex__sql,
+        sizeof(dh_migrations__0050__sqlite__addApplyToParentIndex__sql)
     );
 
     MIGRATION(
         "sqlScripts/0060-sqlite-createChunkHashTable.sql",
-        dh_migrations_0060_sqlite_createChunkHashTable_sql,
-        dh_migrations_0060_sqlite_createChunkHashTable_sql_len
+        dh_migrations__0060__sqlite__createChunkHashTable__sql,
+        sizeof(dh_migrations__0060__sqlite__createChunkHashTable__sql)
     );
 
     MIGRATION(
         "sqlScripts/0070-sqlite-createBeaconBeamTable.sql",
-        dh_migrations_0070_sqlite_createBeaconBeamTable_sql,
-        dh_migrations_0070_sqlite_createBeaconBeamTable_sql_len
+        dh_migrations__0070__sqlite__createBeaconBeamTable__sql,
+        sizeof(dh_migrations__0070__sqlite__createBeaconBeamTable__sql)
     );
 
     MIGRATION(
         "sqlScripts/0080-sqlite-addApplyToChildrenColumn.sql",
-        dh_migrations_0080_sqlite_addApplyToChildrenColumn_sql,
-        dh_migrations_0080_sqlite_addApplyToChildrenColumn_sql_len
+        dh_migrations__0080__sqlite__addApplyToChildrenColumn__sql,
+        sizeof(dh_migrations__0080__sqlite__addApplyToChildrenColumn__sql)
     );
 
 
@@ -319,16 +275,16 @@ int dh_db_store(const struct dh_db *db, struct dh_lod *lod) {
 
     switch (lod->compression_mode) {
     case DH_DATA_COMPRESSION_UNCOMPRESSED:
-        check_error(sqlite3_bind_blob(db->store, 7, dh_constants_gen_step, dh_constants_gen_step_len, SQLITE_STATIC));
-        check_error(sqlite3_bind_blob(db->store, 8, dh_constants_compression_mode, dh_constants_compression_mode_len, SQLITE_STATIC));
+        check_error(sqlite3_bind_blob(db->store, 7, dh_constants__gen_step, sizeof(dh_constants__gen_step), SQLITE_STATIC));
+        check_error(sqlite3_bind_blob(db->store, 8, dh_constants__compression_mode, sizeof(dh_constants__compression_mode), SQLITE_STATIC));
         break;
     case DH_DATA_COMPRESSION_LZ4:
-        check_error(sqlite3_bind_blob(db->store, 7, dh_constants_gen_step_lz4, dh_constants_gen_step_lz4_len, SQLITE_STATIC));
-        check_error(sqlite3_bind_blob(db->store, 8, dh_constants_compression_mode_lz4, dh_constants_compression_mode_lz4_len, SQLITE_STATIC));
+        check_error(sqlite3_bind_blob(db->store, 7, dh_constants__gen_step__lz4, sizeof(dh_constants__gen_step__lz4), SQLITE_STATIC));
+        check_error(sqlite3_bind_blob(db->store, 8, dh_constants__compression_mode__lz4, sizeof(dh_constants__compression_mode__lz4), SQLITE_STATIC));
         break;
     case DH_DATA_COMPRESSION_LZMA2:
-        check_error(sqlite3_bind_blob(db->store, 7, dh_constants_gen_step_lzma, dh_constants_gen_step_lzma_len, SQLITE_STATIC));
-        check_error(sqlite3_bind_blob(db->store, 8, dh_constants_compression_mode_lzma, dh_constants_compression_mode_lzma_len, SQLITE_STATIC));
+        check_error(sqlite3_bind_blob(db->store, 7, dh_constants__gen_step__lzma, sizeof(dh_constants__gen_step__lzma), SQLITE_STATIC));
+        check_error(sqlite3_bind_blob(db->store, 8, dh_constants__compression_mode__lzma, sizeof(dh_constants__compression_mode__lzma), SQLITE_STATIC));
         break;
     default:
         fprintf(stderr, "unknown LOD compression mode\n");

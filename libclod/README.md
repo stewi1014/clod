@@ -19,6 +19,10 @@ I'd recommend at least using this library as a reference.
 - [`#include <lod.h>`](./include/lod.h) for LOD generating.
 - [`#include <nbt.h>`](./include/nbt.h) gives you NBT parsing helpers.
 
+## Development
+
+Generating resource sources can be done with `gradle generate`.
+
 ## Non-Goals
 
 It can be easy to get carried away on flights of fancy and waste time better spent elsewhere on nonsense

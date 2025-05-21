@@ -3,15 +3,13 @@
 #include <stdarg.h>
 #include <string.h>
 
-#include "clod.h"
-
 #ifdef _WIN32
 #define PATH_SEP "\\"
 #else
 #define PATH_SEP "/"
 #endif
 
-static char *path_join(char **tmp_string, size_t *tmp_string_cap, const clod_allocator *alloc, const char *elem ...) {
+static char *path_join(char **tmp_string, size_t *tmp_string_cap, void*(*realloc_f)(void *, size_t), const char *elem ...) {
     va_list va = nullptr;
     va_start(va, elem);
 
@@ -20,7 +18,7 @@ static char *path_join(char **tmp_string, size_t *tmp_string_cap, const clod_all
         const size_t len = strlen(elem);
         size += len;
         if (*tmp_string_cap < size + 1) {
-            char *new = alloc->realloc(*tmp_string, size + 1);
+            char *new = realloc_f(*tmp_string, size + 1);
             if (new == nullptr) return nullptr;
 
             *tmp_string = new;

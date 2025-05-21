@@ -1,6 +1,7 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <errno.h>
+#include <libdeflate.h>
 
 #ifdef _WIN32
 #include <windows.h>
@@ -25,10 +26,21 @@ struct anvil_region_file {
      * minecraft tends to leave empty region files around sometimes,
      * and not doing this would mean that us touching them fills them with zeroes.
      */
-    bool needs_header;
+    bool is_empty;
 
-    char *tmp_string;       /** (nullable) temporary string. */
+    char *tmp_string;       /** (nullable) temporary string 2^8. */
     size_t tmp_string_cap;  /** allocated size of the temporary string. */
+
+    char *tmp_buffer;       /** temporary buffer 2^16. */
+    size_t tmp_buffer_cap;  /** allocated size of the temporary buffer. */
+
+    bool read_continue;
+    int64_t rc_chunk_x;
+    int64_t rc_chunk_z;
+    size_t rc_size;
+
+    struct libdeflate_compressor *libdeflate_compressor;
+    struct libdeflate_decompressor *libdeflate_decompressor;
 
     char *chunk_extension; /** the filename extension that chunk files have. */
 
@@ -54,7 +66,7 @@ anvil_result anvil_region_file_open(
     else if (
         alloc->malloc == nullptr ||
         alloc->calloc == nullptr ||
-        alloc->free == nullptr ||
+        alloc->free == nullptr   ||
         alloc->realloc == nullptr
     ) {
         return ANVIL_INVALID_ARGUMENT;
@@ -65,8 +77,8 @@ anvil_result anvil_region_file_open(
     }
 
     int64_t region_x, region_z;
-
-
+    const anvil_result result = anvil_region_parse_name(path, &region_x, &region_z);
+    if (result != ANVIL_OK) return result;
 
     struct anvil_region_file *region_file = alloc->malloc(sizeof(struct anvil_region_file));
     if (region_file == nullptr) {
@@ -91,6 +103,13 @@ anvil_result anvil_region_file_open(
 
     region_file->tmp_string = nullptr;
     region_file->tmp_string_cap = 0;
+    region_file->tmp_buffer = nullptr;
+    region_file->tmp_buffer_cap = 0;
+    region_file->read_continue = false;
+    region_file->libdeflate_compressor = nullptr;
+    region_file->libdeflate_decompressor = nullptr;
+    region_file->region_x = region_x;
+    region_file->region_z = region_z;
     region_file->alloc = alloc;
 
     // need to open for reading and writing,
@@ -139,7 +158,7 @@ anvil_result anvil_region_file_open(
     const size_t r = fread(buffer_view, 4096, 2, region_file->file);
     if (r != 2) {
         if (feof(region_file->file)) {
-            region_file->needs_header = true;
+            region_file->is_empty = true;
             return ANVIL_OK;
         }
 
@@ -176,37 +195,8 @@ anvil_result anvil_region_file_open(
         region_file->chunk_mtimes[i/32][i%32] = mtime;
     }
 
-    region_file->needs_header = false;
-
+    region_file->is_empty = false;
     return ANVIL_OK;
-}
-
-char *anvil_chunk_file_path(
-    struct anvil_region_file *region_file,
-    const int64_t chunk_x,
-    const int64_t chunk_z
-) {
-    try_again:
-        const int name_len = snprintf(
-            region_file->tmp_string,
-            region_file->tmp_string_cap,
-            "%s%sc.%ld.%ld.%s",
-            region_file->path,
-            PATH_SEP,
-            chunk_x,
-            chunk_z,
-            region_file->chunk_extension
-        );
-
-    if (name_len >= region_file->tmp_string_cap) {
-        char *new = region_file->alloc->realloc(region_file->tmp_string, name_len);
-        if (new == nullptr) return nullptr;
-        region_file->tmp_string = new;
-        region_file->tmp_string_cap = name_len;
-        goto try_again;
-    }
-
-    return region_file->tmp_string;
 }
 
 uint32_t anvil_chunk_mtime(
@@ -216,7 +206,7 @@ uint32_t anvil_chunk_mtime(
 ) {
     if (
         region_file == nullptr ||
-        region_file->needs_header ||
+        region_file->is_empty ||
         region_file->file == nullptr
     ) {
         return 0;
@@ -227,7 +217,7 @@ uint32_t anvil_chunk_mtime(
 
 anvil_result anvil_chunk_read(
     void *restrict out,
-    size_t out_cap,
+    const size_t out_cap,
     size_t *out_len,
     const int64_t chunk_x,
     const int64_t chunk_z,
@@ -235,17 +225,39 @@ anvil_result anvil_chunk_read(
 ) {
     if (
         region_file == nullptr ||
-        out_len == nullptr ||
         region_file->file == nullptr
     ) {
         return ANVIL_INVALID_ARGUMENT;
     }
 
-    const uint32_t offset = region_file->chunk_offsets[chunk_x&31][chunk_z&31];
-    uint8_t size = region_file->chunk_sizes[chunk_x&31][chunk_z&31];
+    size_t size;
 
-    if (fseek(region_file->file, offset * 4096, SEEK_SET) == -1)
+    if (
+        region_file->read_continue &&
+        region_file->rc_chunk_x == chunk_x &&
+        region_file->rc_chunk_z == chunk_z
+    ) {
+        size = region_file->rc_size;
+        goto continue_read;
+    }
+
+    if (region_file->is_empty) {
+        *out_len = 0;
+        return ANVIL_OK;
+    }
+
+    const auto offset = region_file->chunk_offsets[chunk_x&31][chunk_z&31];
+    const auto sectors = region_file->chunk_sizes[chunk_x&31][chunk_z&31];
+
+    if (offset < 2) {
+        fclose(region_file->file);
+        region_file->file = nullptr;
+        return ANVIL_MALFORMED;
+    }
+
+    if (fseek(region_file->file, offset * 4096, SEEK_SET) == -1) {
         return ANVIL_IO_ERROR;
+    }
 
     uint8_t header[5];
     if (fread(header, 1, 5, region_file->file) != 5) {
@@ -262,19 +274,224 @@ anvil_result anvil_chunk_read(
         return ANVIL_IO_ERROR;
     }
 
-    FILE *file = region_file->file;
-    if (header[4] & 128) {
-        // chunk data is stored in a separate file.
+    const uint32_t header_chunk_size =
+        header[0] << 24 |
+        header[1] << 16 |
+        header[2] << 8  |
+        header[3] - 1   ;
+    const uint8_t header_compression_type =
+        header[4] & 0b01111111;
+    const bool header_chunk_file =
+        header[4] & 0b10000000;
 
-        char *chunk_file_path = anvil_chunk_file_path()
+    FILE *file;
+    bool close_on_exit;
 
-        file = fopen()
+    if (header_chunk_file) { // chunk data is stored in a separate file.
+    try_chunk_name_again:
+        const int path_len = anvil_filepath(
+            region_file->tmp_string,
+            region_file->tmp_string_cap,
+            region_file->path,
+            "c",
+            region_file->region_x * 32 + (chunk_x & 31),
+            region_file->region_z * 32 + (chunk_z & 31),
+            region_file->chunk_extension
+        );
+
+        if (path_len >= region_file->tmp_string_cap) {
+            char *new = region_file->alloc->realloc(region_file->tmp_string, path_len);
+            if (new == nullptr) return ANVIL_ALLOC_FAILED;
+
+            region_file->tmp_string = new;
+            region_file->tmp_string_cap = path_len;
+            goto try_chunk_name_again;
+        }
+
+        FILE *chunk_file = fopen(region_file->tmp_string, "rb");
+        if (chunk_file == nullptr) {
+        switch (errno) {
+        case ENOENT:
+            errno = 0;
+            if (out_len != nullptr) *out_len = 0;
+            return ANVIL_OK;
+        case ENOMEM: errno = 0; return ANVIL_ALLOC_FAILED;
+        case ENOTDIR: errno = 0; return ANVIL_NOT_EXIST;
+        default: return ANVIL_IO_ERROR;
+        }
+        }
+
+        if (fseek(chunk_file, 0, SEEK_END)) {
+            const auto err = errno;
+            fclose(chunk_file);
+            errno = err;
+            return ANVIL_IO_ERROR;
+        }
+
+        const auto file_size = ftell(chunk_file);
+        if (file_size < 0) {
+            const auto err = errno;
+            fclose(chunk_file);
+            errno = err;
+            return ANVIL_IO_ERROR;
+        }
+
+        if (file_size == 0) {
+            if (fclose(chunk_file)) {
+                return ANVIL_IO_ERROR;
+            }
+            *out_len = 0;
+            return ANVIL_OK;
+        }
+
+        size = file_size;
+        close_on_exit = true;
+        file = chunk_file;
+    } else {
+        if (header_chunk_size > sectors * 4096) {
+            if (fclose(region_file->file)) {
+                return ANVIL_IO_ERROR;
+            }
+            return ANVIL_MALFORMED;
+        }
+
+        size = header_chunk_size;
+        close_on_exit = false;
+        file = region_file->file;
+    }
+
+    switch (header_compression_type) {
+    case ANVIL_COMPRESSION_NONE: {
+        if (out_cap < size) {
+            // it seems like a shame, but I doubt reopening this file
+            // actually has a significant performance impact.
+            if (close_on_exit && fclose(file)) {
+                return ANVIL_IO_ERROR;
+            }
+
+            *out_len = size;
+            return ANVIL_INSUFFICIENT_SPACE;
+        }
+
+        const auto n_read = fread(out, size, 1, file);
+        if (n_read != 1) {
+            if (feof(file)) {
+                if (close_on_exit && fclose(file)) {
+                    return ANVIL_IO_ERROR;
+                }
+
+                return ANVIL_MALFORMED;
+            }
+
+            if (close_on_exit) {
+                const auto err = errno;
+                fclose(file);
+                errno = err;
+            }
+            return ANVIL_IO_ERROR;
+        }
+
+        *out_len = size;
+        return ANVIL_OK;
+    }
+
+    case ANVIL_COMPRESSION_GZIP: case ANVIL_COMPRESSION_ZLIB: {
+        if (region_file->tmp_buffer_cap < size) {
+            char *new = region_file->alloc->realloc(region_file->tmp_buffer, size);
+            if (new == nullptr) {
+                if (close_on_exit) {
+                    const auto err = errno;
+                    fclose(file);
+                    errno = err;
+                }
+                return ANVIL_ALLOC_FAILED;
+            }
+
+            region_file->tmp_buffer = new;
+            region_file->tmp_buffer_cap = size;
+        }
+
+        const auto n_read = fread(region_file->tmp_buffer, size, 1, file);
+        if (n_read != 1) {
+            if (feof(file)) {
+                if (close_on_exit && fclose(file)) {
+                    return ANVIL_IO_ERROR;
+                }
+
+                return ANVIL_MALFORMED;
+            }
+
+            if (close_on_exit) {
+                const auto err = errno;
+                fclose(file);
+                errno = err;
+            }
+            return ANVIL_IO_ERROR;
+        }
+
+        if (close_on_exit && fclose(file)) {
+            return ANVIL_IO_ERROR;
+        }
+
+        if (region_file->libdeflate_decompressor == nullptr) {
+            struct libdeflate_options opts = {0};
+            opts.sizeof_options = sizeof(opts);
+            opts.malloc_func = region_file->alloc->malloc;
+            opts.free_func = region_file->alloc->free;
+            region_file->libdeflate_decompressor = libdeflate_alloc_decompressor_ex(&opts);
+        }
+
+    continue_read:
+        enum libdeflate_result res;
+        if (header_compression_type == ANVIL_COMPRESSION_GZIP) {
+            res = libdeflate_gzip_decompress_ex(
+                region_file->libdeflate_decompressor,
+                region_file->tmp_buffer,
+                size,
+                out,
+                out_cap,
+                nullptr,
+                out_len
+            );
+        } else {
+            res = libdeflate_gzip_decompress_ex(
+                region_file->libdeflate_decompressor,
+                region_file->tmp_buffer,
+                size,
+                out,
+                out_cap,
+                nullptr,
+                out_len
+            );
+        }
+
+        if (res == LIBDEFLATE_INSUFFICIENT_SPACE) {
+            auto guess = (out_cap << 1) - (out_cap >> 1);
+            if (guess == 0) guess = 1<<16;
+            if (guess < size * 10) guess = size * 10;
+
+
+            *out_len = size * 10;
+            region_file->read_continue = true;
+            region_file->rc_chunk_x = chunk_x;
+            region_file->rc_chunk_z = chunk_z;
+            return ANVIL_INSUFFICIENT_SPACE;
+        }
+        region_file->read_continue = false;
+    }
+
+    default: {
+        if (close_on_exit && fclose(file)) {
+            return ANVIL_IO_ERROR;
+        }
+        return ANVIL_UNSUPPORTED_COMPRESSION;
+    }
     }
 }
 
 anvil_result anvil_chunk_write(
-    void *restrict in,
-    size_t in_len,
+    const void *restrict in,
+    const size_t in_len,
     enum anvil_compression compression,
     int64_t chunk_x,
     int64_t chunk_z,
@@ -286,13 +503,21 @@ anvil_result anvil_chunk_write(
     ) {
         return ANVIL_INVALID_ARGUMENT;
     }
+    return ANVIL_NOT_EXIST;
 }
 
+#define clear(var, op) if (var != nullptr) { op(var); var = nullptr; }
+
 void anvil_region_file_close(struct anvil_region_file *region_file) {
-    if (region_file->file != nullptr) {
-        fclose(region_file->file);
-        region_file->file = nullptr;
-    }
+    clear(region_file->path, region_file->alloc->free);
+    clear(region_file->file, fclose);
+    clear(region_file->tmp_string, region_file->alloc->free);
+    region_file->tmp_string_cap = 0;
+    clear(region_file->tmp_buffer, region_file->alloc->free);
+    region_file->tmp_buffer_cap = 0;
+    clear(region_file->libdeflate_decompressor, libdeflate_free_decompressor);
+    clear(region_file->libdeflate_compressor, libdeflate_free_compressor);
+    clear(region_file->chunk_extension, region_file->alloc->free);
 
     region_file->alloc->free(region_file);
 }
