@@ -1,16 +1,18 @@
 libclod_headers = [
     'include/anvil.h',
     'include/dh.h',
-    'include/lod.h',
     'include/nbt.h',
 ]
 
 libclod_sources = libclod_headers + [
     'generated/index.h',
     'generated/index.c',
+    'src/anvil.c',
+    'src/anvil_internal.h',
     'src/anvil_region_dir.c',
     'src/anvil_region_file.c',
     'src/anvil_world.c',
+    'src/buffer.h',
     'src/compress.c',
     'src/compress.h',
     'src/dh_db.c',
@@ -20,8 +22,14 @@ libclod_sources = libclod_headers + [
     'src/dh_lod_mip.c',
     'src/dh_lod_mip_nxn.c',
     'src/nbt.c',
-    'src/path.h',
     'src/serialise.c',
+]
+
+libclod_dependencies = [
+    dependency('libdeflate'),
+    dependency('liblz4'),
+    dependency('liblzma'),
+    dependency('sqlite3'),
 ]
 
 libclod = library(
@@ -30,14 +38,7 @@ libclod = library(
     version: '1.0.0',
     soversion: '1',
     include_directories: include_directories('include'),
-    dependencies: [
-        dependency('libdeflate'),
-        dependency('liblz4'),
-        dependency('libzstd'),
-        dependency('liblzma'),
-        dependency('sqlite3'),
-        dependency('libpq'),
-    ],
+    dependencies: libclod_dependencies,
 )
 
 libclod_dep = declare_dependency(
@@ -52,6 +53,7 @@ test_cases = [
     'dh_generate_and_store_benchmark',
     'dh_generate_benchmark',
     'dh_generate_example',
+    'iterate_regions',
     'open_world',
     'open_zlib_region',
     'parse_nbt',

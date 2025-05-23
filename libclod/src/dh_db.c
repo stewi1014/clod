@@ -299,7 +299,7 @@ int dh_db_store(const struct dh_db *db, struct dh_lod *lod) {
     check_error(sqlite3_bind_blob(db->store, 6, lod->lod_arr, lod->lod_len, SQLITE_STATIC));
     check_error(sqlite3_bind_blob(db->store, 9, mapping, mapping_len, SQLITE_STATIC));
     check_error(sqlite3_bind_int(db->store, 10, 1));
-    check_error(sqlite3_bind_int(db->store, 11, lod->compression_mode)); // TODO; add compression
+    check_error(sqlite3_bind_int(db->store, 11, lod->compression_mode));
     check_error(sqlite3_bind_int64(db->store, 12, 0));
     check_error(sqlite3_bind_int64(db->store, 13, 0));
 

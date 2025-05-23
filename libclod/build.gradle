@@ -10,7 +10,7 @@ tasks.register('generate') {
 
     mkdir('generated')
     file('generated/index.h').withDataOutputStream { index_header ->
-    file('generated/index.c').withDataOutputStream {index_source ->
+    file('generated/index.c').withDataOutputStream { index_source ->
 
         index_header.writeBytes("#pragma once\n")
 

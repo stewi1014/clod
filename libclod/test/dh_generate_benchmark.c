@@ -27,13 +27,13 @@ int main(int argc, char **argv) {
         chunk_ctx[xi * 4 + zi] = anvil_chunk_ctx_alloc(NULL);
     }
 
-    struct anvil_region_iter *iter = anvil_region_iter_new("region", world);
+    struct anvil_iter *iter = anvil_region_iter_new("region", world);
     struct anvil_region region;
     struct anvil_chunk chunks[16];
     struct dh_lod lod = DH_LOD_CLEAR;
 
     int error;
-    while (!(error = anvil_region_iter_next(&region, iter))) {
+    while (!(error = anvil_iter_next(&region, iter))) {
         //printf("(%d, %d) ", region.region_x, region.region_z);
 
         for (int x = 0; x < 32; x += 4) for (int z = 0; z < 32; z += 4) {

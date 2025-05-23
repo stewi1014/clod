@@ -1,5 +1,5 @@
-@page api api
-# api
+@page Api Api
+# Api
 libclod java library
 
 [TOC]

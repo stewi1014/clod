@@ -1,5 +1,5 @@
-@page cli cli
-# clod cli
+@page Cli Cli
+# Clod cli
 
 [TOC]
 

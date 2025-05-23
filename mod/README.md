@@ -1,5 +1,5 @@
-@page mod mod
-# mod
+@page Mod Mod
+# Mod
 
 asdf
 

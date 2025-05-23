@@ -13,10 +13,10 @@ int main(int argc, char **argv) {
     }
 
     struct anvil_chunk_ctx *chunk_ctx = anvil_chunk_ctx_alloc(NULL);
-    struct anvil_region_iter *iter = anvil_region_iter_new("region", world); // e.g. region, DIM1, DIM-1.
+    struct anvil_iter *iter = anvil_region_iter_new("region", world); // e.g. region, DIM1, DIM-1.
     struct anvil_region region;
     int error;
-    while (!(error = anvil_region_iter_next(&region, iter))) {
+    while (!(error = anvil_iter_next(&region, iter))) {
         struct anvil_chunk chunk;
         for (int x = 0; x < 32; x++) for (int z = 0; z < 32; z++) {
             chunk = anvil_chunk_decompress(chunk_ctx, &region, x, z);

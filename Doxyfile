@@ -1,11 +1,11 @@
 PROJECT_NAME           = "clod"
 PROJECT_BRIEF          = "C library for minecraft and LODs"
-OUTPUT_DIRECTORY       = build/docs
-HTML_OUTPUT            = .
+OUTPUT_DIRECTORY       = docs
 RECURSIVE              = YES
 FILE_PATTERNS          = *.c *.h *.java *.md
-INPUT                  = api cli fabric forge libclod mod neoforge paper spigot
+INPUT                  = api cli fabric forge libclod mod neoforge paper spigot README.md
 EXTRACT_PRIVATE        = no
+EXAMPLE_PATH           = libclod/test clod/test
 
 GENERATE_TREEVIEW      = YES
 DISABLE_INDEX          = NO

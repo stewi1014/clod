@@ -22,12 +22,12 @@ int main(int argc, char **argv) {
     timespec_get(&start, TIME_UTC);
     
     struct anvil_chunk_ctx *chunk_ctx = anvil_chunk_ctx_alloc(nullptr);
-    struct anvil_region_iter *iter = anvil_region_iter_new("region", world);
+    struct anvil_iter *iter = anvil_region_iter_new("region", world);
     struct anvil_region region;
     auto sections = ANVIL_SECTIONS_CLEAR;
 
     int error;
-    while (!((error = anvil_region_iter_next(&region, iter)))) {
+    while (!((error = anvil_iter_next(&region, iter)))) {
         //printf("(%d, %d) ", region.region_x, region.region_z);
 
         for (int x = 0; x < 32; x++) for (int z = 0; z < 32; z++) {

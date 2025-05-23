@@ -18,13 +18,13 @@ int main(int argc, char **argv) {
         chunk_ctx[xi * 4 + zi] = anvil_chunk_ctx_alloc(NULL);
     }
 
-    struct anvil_region_iter *iter = anvil_region_iter_new("region", world);
+    struct anvil_iter *iter = anvil_region_iter_new("region", world);
     struct anvil_region region;
     struct anvil_chunk chunks[16];
     struct dh_lod lod = DH_LOD_CLEAR;
 
     int error;
-    while (!(error = anvil_region_iter_next(&region, iter))) {
+    while (!(error = anvil_iter_next(&region, iter))) {
         for (int x = 0; x < 32; x += 4) for (int z = 0; z < 32; z += 4) {
             for (int xi = 0; xi < 4; xi++) for (int zi = 0; zi < 4; zi++)
                 chunks[xi * 4 + zi] = anvil_chunk_decompress(chunk_ctx[xi * 4 + zi], &region, x + xi, z + zi);

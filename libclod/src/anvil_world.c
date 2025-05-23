@@ -5,20 +5,33 @@
 #include <stdlib.h>
 
 #include "anvil.h"
-#include "path.h"
+#include "anvil_internal.h"
 
-#define JOIN(...) path_join(&world->tmp_string, &world->tmp_string_cap, world->alloc, __VA_ARGS__)
+#ifdef CLOD_USE_POSIX
+
+#include <fcntl.h>
+#include <unistd.h>
+
+#else
+#error not implemented
+#endif
+
+#define SESSION_LOCK_STR "libclod"
+#define SESSION_LOCK_STR_LEN strlen("libclod")
 
 /// @private
 struct anvil_world {
-    char *path;
-
     char *tmp_string;
     size_t tmp_string_cap;
 
-    FILE *session_lock;
-
     const anvil_allocator *alloc;
+
+#ifdef CLOD_USE_POSIX
+    int dir_fd;
+    int session_lock_fd;
+#else
+#error not implemenete
+#endif
 };
 
 anvil_result anvil_world_open(
@@ -26,118 +39,103 @@ anvil_result anvil_world_open(
     const char *path,
     const anvil_allocator *alloc
 ) {
-    if (path == nullptr || world_out == nullptr) return ANVIL_INVALID_ARGUMENT;
+    __anvil_assert_return(world_out != nullptr);
+    __anvil_assert_return(path != nullptr);
+
     if (alloc == nullptr)
         alloc = &default_anvil_allocator;
-    else if (
-        alloc->malloc == nullptr ||
-        alloc->calloc == nullptr ||
-        alloc->free == nullptr ||
-        alloc->realloc == nullptr
-    ) {
-        return ANVIL_INVALID_ARGUMENT;
-    }
 
-    size_t path_len = strlen(path);
-    if (path_len == 0) {
-        return ANVIL_NOT_EXIST;
-    }
-
-    if (
-        path_len >= strlen(PATH_SEP"level.dat") &&
-        strcmp(path + path_len - strlen(PATH_SEP"level.dat"), PATH_SEP"level.dat") == 0
-    ) {
-        path_len -= strlen(PATH_SEP"level.dat");
-    }
-
-    char *path_copy = alloc->malloc(path_len + 1);
-    if (path_copy == nullptr) {
-        return ANVIL_ALLOC_FAILED;
-    }
-    memcpy(path_copy, path, path_len - 1);
-    path_copy[path_len] = '\0';
+    __anvil_assert_return(alloc->malloc != nullptr);
+    __anvil_assert_return(alloc->calloc != nullptr);
+    __anvil_assert_return(alloc->free != nullptr);
+    __anvil_assert_return(alloc->realloc != nullptr);
 
     struct anvil_world *world = alloc->malloc(sizeof(struct anvil_world));
     if (world == nullptr) {
-        alloc->free(path_copy);
         return ANVIL_ALLOC_FAILED;
     }
 
-    world->path = path_copy;
-    world->tmp_string = nullptr;
-    world->tmp_string_cap = 0;
-    world->session_lock = nullptr;
-    world->alloc = alloc;
+#ifdef CLOD_USE_POSIX
 
-    const char *session_lock_path = JOIN(world->path, PATH_SEP, "session.lock", nullptr);
-    if (session_lock_path == nullptr) {
-        world->alloc->free(world->path);
-        world->alloc->free(world);
-        return ANVIL_ALLOC_FAILED;
+    world->dir_fd = open(path, O_DIRECTORY);
+    if (world->dir_fd < 0) {
+        return __anvil_errno;
     }
 
-    world->session_lock = fopen(session_lock_path, "wb");
-    if (world->session_lock == nullptr) {
-        world->alloc->free(world->tmp_string);
-        world->alloc->free(world->path);
-        world->alloc->free(world);
-        return ANVIL_IO_ERROR;
+    world->session_lock_fd = openat(world->dir_fd, "session.lock", O_WRONLY | O_CREAT | O_TRUNC);
+    if (world->session_lock_fd < 0) {
+        __anvil_errno_return(close(world->dir_fd));
     }
 
-    if (fputs("C", world->session_lock) < 0) {
-        fclose(world->session_lock);
-        world->alloc->free(world->tmp_string);
-        world->alloc->free(world->path);
-        world->alloc->free(world);
-        return ANVIL_IO_ERROR;
-    }
+    if (lockf(world->session_lock_fd, F_TLOCK, 0)) {
+        const auto err = errno;
+        close(world->dir_fd);
+        close(world->session_lock_fd);
+        errno = err;
 
-    if (fflush(world->session_lock)) {
-        fclose(world->session_lock);
-        world->alloc->free(world->tmp_string);
-        world->alloc->free(world->path);
-        world->alloc->free(world);
-        return ANVIL_IO_ERROR;
-    }
-
-    #ifndef _WIN32
-        #include <unistd.h>
-        if (lockf(fileno(world->session_lock), F_TLOCK, -ftell(world->session_lock))) {
-            anvil_result res = ANVIL_IO_ERROR;
-            if (errno == EACCES || errno == EAGAIN) res = ANVIL_LOCKED;
-            fclose(world->session_lock);
-            world->alloc->free(world->tmp_string);
-            world->alloc->free(world->path);
-            world->alloc->free(world);
-            return res;
+        if (errno == EACCES || errno == EAGAIN) {
+            return ANVIL_LOCKED;
         }
-    #endif
+        return __anvil_errno;
+    }
+
+    const ssize_t w = write(world->session_lock_fd, SESSION_LOCK_STR, SESSION_LOCK_STR_LEN);
+    if (w < SESSION_LOCK_STR_LEN) {
+        __anvil_errno_return(close(world->dir_fd), close(world->session_lock_fd));
+    }
+
+    if (fsync(world->session_lock_fd)) {
+        __anvil_errno_return(close(world->dir_fd), close(world->session_lock_fd))
+    }
+
+#else
+#error not implemented
+#endif
 
     *world_out = world;
     return ANVIL_OK;
 }
 
-anvil_result anvil_world_open_region_dir(
-    struct anvil_region_dir **region_dir_out,
-    struct anvil_world *world,
+anvil_result anvil_world_open_dir(
+    struct anvil_dir **dir_out,
+    const struct anvil_world *world,
     const char *subdir,
     const char *region_extension,
     const char *chunk_extension
 ) {
-    if (world == nullptr) return ANVIL_INVALID_ARGUMENT;
-    return anvil_region_dir_open(
-        region_dir_out,
-        JOIN(world->path, PATH_SEP, subdir, nullptr),
+    __anvil_assert_return(world != nullptr);
+    __anvil_assert_return(dir_out != nullptr);
+
+    return anvil_region_dir_openat(
+        dir_out,
+        subdir,
         region_extension,
         chunk_extension,
+
+#ifdef CLOD_USE_POSIX
+
+        world->dir_fd,
+
+#else
+#error not implemented
+#endif
+
         world->alloc
     );
 }
 
 void anvil_world_close(struct anvil_world *world) {
     if (world == nullptr) return;
-    fclose(world->session_lock);
+
+#ifdef CLOD_USE_POSIX
+
+    close(world->dir_fd);
+    close(world->session_lock_fd);
+
+#else
+#error not implemented
+#endif
+
     world->alloc->free(world->tmp_string);
-    world->alloc->free(world->path);
     world->alloc->free(world);
 }
