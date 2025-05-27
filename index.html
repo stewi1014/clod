@@ -6,7 +6,7 @@
 <meta http-equiv="X-UA-Compatible" content="IE=11"/>
 <meta name="generator" content="Doxygen 1.9.6"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
-<title>clod: Main Page</title>
+<title>clod: clod</title>
 <!--BEGIN PROJECT_ICON-->
 <link rel="icon" href="$projecticon" type="image/x-icon" />
 <!--END PROJECT_ICON-->
@@ -101,10 +101,49 @@ $(document).ready(function(){initNavTree('index.html',''); initResizable(); });
 </div>
 </div>
 
-<div class="header">
-  <div class="headertitle"><div class="title">clod Documentation</div></div>
+<div><div class="header">
+  <div class="headertitle"><div class="title">clod </div></div>
 </div><!--header-->
 <div class="contents">
+<div class="textblock"><p><a class="anchor" id="mainpage"></a> <em>A lump or mass especially of earth or clay</em></p>
+<h4><a class="anchor" id="autotoc_md23"></a>
+Examples of clod in a sentence</h4>
+<ul>
+<li>Her husband's such a clod.</li>
+<li>The ground was thin, with clods of turf washed away by recent rain, and the dark soil beneath had pushed its way to the surface once again.</li>
+</ul>
+<h2><a class="anchor" id="autotoc_md24"></a>
+Structure</h2>
+<ul>
+<li><a href="./cli">cli</a> command line interface.</li>
+<li><a href="./libclod">libclod</a> C library - the main point of this project.</li>
+<li><a href="./mod">mod</a> minecraft mod that provides an in-game command line interface. (no work started yet)</li>
+<li><a href="./api">api</a> java bindings for the library. (no work started yet)</li>
+</ul>
+<h2><a class="anchor" id="autotoc_md25"></a>
+Dependencies</h2>
+<p>Make sure these are findable by meson.</p>
+<ul>
+<li>libdeflate</li>
+<li>liblz4</li>
+<li>libzstd</li>
+<li>liblzma</li>
+<li>sqlite3</li>
+<li>libpq</li>
+</ul>
+<h2><a class="anchor" id="autotoc_md26"></a>
+Development</h2>
+<p>You can use IDEA, but you won't even get syntax highlighting for the C stuff. Or, you can try VSCode and its extensions, but then the java stuff is janky and lacks features. Or you give up the fancy-pants features and UI by using an editor like Vim, but then you gotta learn how to use it.</p>
+<p>Kinda tough deciding which of your friends get to die, isn't it? Good news is you got this one choom who's already dead. And he'd be honoured to join you on a wild suicide run. You, me, the terminal and the text editor. Kinda sounds like a Eurodyne lyric, I know, but trust me - we'll go fuckin' nova.</p>
+<h2><a class="anchor" id="autotoc_md27"></a>
+Building</h2>
+<p>Use gradle and/or meson as normal. Those unfamiliar with C should note that you're responsible for providing dependencies - typically at the OS level.</p>
+<p>To control the modloader and minecraft version, reference the <code>&lt;modloader&gt;-&lt;minecraft_version&gt;</code> gradle subproject. Some examples; <code>gradle fabric-1.19.1:runClient</code>, <code>gradle fabric-1.20.1:build</code>, <code>gradle forge-1.19.4:runClient</code>, <code>gradle paper-1.21.5:build</code> and <code>gradle neoforge-1.21.0:runServer</code> all operate as you would expect. <code>build_all_targets.sh</code> is generated for convenience.</p>
+<h2><a class="anchor" id="autotoc_md28"></a>
+Platforms</h2>
+<p>If I'm honest with myself, I can only properly support GCC linux.x86_64 -&gt; linux.x86_64. That being said, I would like to support as many platforms as possible. If you use a different platform I'd love any help you can offer in supporting it.</p>
+<p>At the time of writing; Any combination of *BSD, Linux, x86_64 and ARM should work perfectly. With any luck I've one-shot OSX support - I've tried to avoid anything not posix. Windows is missing a few platform dependent functions, but <strike>shouldn't require rewriting anything I hope</strike>. I've accidentally coupled too closely with methods I didn't realise don't exist in windows - some code needs rewriting by someone on a windows system. </p>
+</div></div><!-- PageDoc -->
 </div><!-- contents -->
 </div><!-- doc-content -->
 <!-- start footer part -->

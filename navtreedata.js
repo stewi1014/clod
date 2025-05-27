@@ -25,30 +25,35 @@
 var NAVTREE =
 [
   [ "clod", "index.html", [
-    [ "api", "md_api_README.html", [
-      [ "api", "md_api_README.html#autotoc_md0", [
+    [ "Api", "md_api_README.html", [
+      [ "Structure", "index.html#autotoc_md24", null ],
+      [ "Dependencies", "index.html#autotoc_md25", null ],
+      [ "Development", "index.html#autotoc_md26", null ],
+      [ "Building", "index.html#autotoc_md27", null ],
+      [ "Platforms", "index.html#autotoc_md28", null ],
+      [ "Api", "md_api_README.html#autotoc_md0", [
         [ "Header2", "md_api_README.html#autotoc_md1", null ]
       ] ]
     ] ],
-    [ "cli", "md_cli_README.html", [
-      [ "clod cli", "md_cli_README.html#autotoc_md2", [
+    [ "Cli", "md_cli_README.html", [
+      [ "Clod cli", "md_cli_README.html#autotoc_md2", [
         [ "Heading 2", "md_cli_README.html#autotoc_md3", null ]
       ] ]
     ] ],
-    [ "libclod", "md_libclod_README.html", [
-      [ "libclod", "md_libclod_README.html#autotoc_md4", [
-        [ "Structure", "md_libclod_README.html#autotoc_md5", null ],
-        [ "Development", "md_libclod_README.html#autotoc_md6", null ],
-        [ "Non-Goals", "md_libclod_README.html#autotoc_md7", null ],
-        [ "Headers", "md_libclod_README.html#autotoc_md8", [
-          [ "<a href=\"./include/anvil.h\" >anvil.h</a>", "md_libclod_README.html#autotoc_md9", [
-            [ "Example: Iterating over all sections in a world", "md_libclod_README.html#autotoc_md10", null ]
+    [ "fabric", "md_fabric_README.html", null ],
+    [ "forge", "md_forge_README.html", null ],
+    [ "Libclod", "md_libclod_README.html", [
+      [ "Libclod", "md_libclod_README.html#autotoc_md6", [
+        [ "Development", "md_libclod_README.html#autotoc_md7", null ],
+        [ "Non-Goals", "md_libclod_README.html#autotoc_md8", null ],
+        [ "Headers", "md_libclod_README.html#autotoc_md9", [
+          [ "@link anvil.h @endlink", "md_libclod_README.html#autotoc_md10", [
+            [ "Example: Iterating over all sections in a world", "md_libclod_README.html#autotoc_md11", null ]
           ] ],
-          [ "<a href=\"./include/dh.h\" >dh.h</a>", "md_libclod_README.html#autotoc_md11", [
-            [ "Example: Generate DH LODs for entire minecraft world", "md_libclod_README.html#autotoc_md12", null ]
+          [ "@link dh.h @endlink", "md_libclod_README.html#autotoc_md12", [
+            [ "Example: Generate DH LODs for entire minecraft world", "md_libclod_README.html#autotoc_md13", null ]
           ] ],
-          [ "<a href=\"./include/lod.h\" >lod.h</a>", "md_libclod_README.html#autotoc_md13", null ],
-          [ "<a href=\"./include/nbt.h\" >nbt.h</a>", "md_libclod_README.html#autotoc_md14", [
+          [ "@link nbt.h @endlink", "md_libclod_README.html#autotoc_md14", [
             [ "Example: Get chunk status", "md_libclod_README.html#autotoc_md15", null ]
           ] ]
         ] ],
@@ -56,10 +61,13 @@ var NAVTREE =
       ] ],
       [ "References", "md_libclod_README.html#autotoc_md17", null ]
     ] ],
-    [ "mod", "md_mod_README.html", [
-      [ "mod", "md_mod_README.html#autotoc_md18", null ],
+    [ "Mod", "md_mod_README.html", [
+      [ "Mod", "md_mod_README.html#autotoc_md18", null ],
       [ "Heading 2", "md_mod_README.html#autotoc_md19", null ]
     ] ],
+    [ "neoforge", "md_neoforge_README.html", null ],
+    [ "paper", "md_paper_README.html", null ],
+    [ "spigot", "md_spigot_README.html", null ],
     [ "Modules", "modules.html", "modules" ],
     [ "Classes", "annotated.html", [
       [ "Class List", "annotated.html", "annotated_dup" ],
@@ -81,7 +89,8 @@ var NAVTREE =
         [ "Enumerator", "globals_eval.html", null ],
         [ "Macros", "globals_defs.html", null ]
       ] ]
-    ] ]
+    ] ],
+    [ "Examples", "examples.html", "examples" ]
   ] ]
 ];
 

@@ -1,7 +1,7 @@
 var searchData=
 [
-  ['cli_0',['cli',['../md_cli_README.html',1,'']]],
-  ['clod_1',['clod',['../group__clod.html',1,'']]],
+  ['cli_0',['Cli',['../md_cli_README.html',1,'']]],
+  ['clod_1',['clod',['../group__clod.html',1,'(Global Namespace)'],['../index.html',1,'(Global Namespace)']]],
   ['clodclientmain_2',['CLODClientMain',['../classclod_1_1CLODClientMain.html',1,'clod']]],
   ['clodfabricclientmain_3',['CLODFabricClientMain',['../classclod_1_1CLODFabricClientMain.html',1,'clod']]],
   ['clodfabricservermain_4',['CLODFabricServerMain',['../classclod_1_1CLODFabricServerMain.html',1,'clod']]],

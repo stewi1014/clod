@@ -6,7 +6,7 @@
 <meta http-equiv="X-UA-Compatible" content="IE=11"/>
 <meta name="generator" content="Doxygen 1.9.6"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
-<title>clod: libclod</title>
+<title>clod: Libclod</title>
 <!--BEGIN PROJECT_ICON-->
 <link rel="icon" href="$projecticon" type="image/x-icon" />
 <!--END PROJECT_ICON-->
@@ -102,27 +102,23 @@ $(document).ready(function(){initNavTree('md_libclod_README.html',''); initResiz
 </div>
 
 <div><div class="header">
-  <div class="headertitle"><div class="title">libclod </div></div>
+  <div class="headertitle"><div class="title">Libclod </div></div>
 </div><!--header-->
 <div class="contents">
-<div class="textblock"><p><a class="anchor" id="libclod"></a></p>
-<h1><a class="anchor" id="autotoc_md4"></a>
-libclod</h1>
+<div class="textblock"><p><a class="anchor" id="Libclod"></a></p>
+<h1><a class="anchor" id="autotoc_md6"></a>
+Libclod</h1>
 <p>Library for dealing with minecraft data - including LODs.</p>
-<p>This library will probably never be used by anyone except myself, and the world is probably better off for it. Having said that, it isn't <em>terrible</em>, and offers some useful functionality.</p>
-<p>If you're using a higher level language and need some things done <em>really</em> fast, or you're writing C that needs to deal with minecraft data and don't feel like DIY-ing the multi-faceted technology stack that is the minecraft save file, I'd recommend at least using this library as a reference.</p>
-<h2><a class="anchor" id="autotoc_md5"></a>
-Structure</h2>
 <ul>
-<li><a href="./include/anvil.h"><code>#include &lt;anvil.h&gt;</code></a> reads the anvil world format.</li>
-<li><a href="./include/dh.h"><code>#include &lt;dh.h&gt;</code></a> deals with DistantHorizons LODs and databases.</li>
-<li><a href="./include/lod.h"><code>#include &lt;lod.h&gt;</code></a> for LOD generating.</li>
-<li><a href="./include/nbt.h"><code>#include &lt;nbt.h&gt;</code></a> gives you NBT parsing helpers.</li>
+<li><a class="el" href="anvil_8h.html">#include&lt;anvil.h&gt; </a> for reading/writing to the world.</li>
+<li><a class="el" href="dh_8h.html">#include&lt;dh.h&gt; </a> to generate LODs for DistantHorizons.</li>
+<li><a class="el" href="nbt_8h.html">#include&lt;nbt.h&gt; </a> for parsing NBT data.</li>
 </ul>
-<h2><a class="anchor" id="autotoc_md6"></a>
+<p>If you're using a higher level language and need some things done <em>really</em> fast, or you're writing C that needs to deal with minecraft data and don't feel like DIY-ing the multi-faceted technology stack that is the minecraft save file, I'd recommend at least using this library as a reference.</p>
+<h2><a class="anchor" id="autotoc_md7"></a>
 Development</h2>
 <p>Generating resource sources can be done with <code>gradle generate</code>.</p>
-<h2><a class="anchor" id="autotoc_md7"></a>
+<h2><a class="anchor" id="autotoc_md8"></a>
 Non-Goals</h2>
 <p>It can be easy to get carried away on flights of fancy and waste time better spent elsewhere on nonsense that slows both you and the program down. The non-goals of this project are notes to myself that aim to quell this problem.</p>
 <ul>
@@ -134,12 +130,12 @@ Non-Goals</h2>
 <li><b>fixing data</b>: garbage in -&gt; garbage out. data parsing should never segfault on bad data, however. garbage in -&gt;X segfault out.</li>
 <li><b>bad abstractions</b>: e.g. 'get_chunk(x,y)' is a bad abstraction because it implies speed and simplicity - the opposite of the implementation which is complex and IO-heavy.</li>
 </ul>
-<h2><a class="anchor" id="autotoc_md8"></a>
+<h2><a class="anchor" id="autotoc_md9"></a>
 Headers</h2>
-<h3><a class="anchor" id="autotoc_md9"></a>
-&lt;a href="./include/anvil.h" &gt;anvil.h&lt;/a&gt;</h3>
+<h3><a class="anchor" id="autotoc_md10"></a>
+@link anvil.h @endlink</h3>
 <p>Methods for reading the anvil world format.</p>
-<h4><a class="anchor" id="autotoc_md10"></a>
+<h4><a class="anchor" id="autotoc_md11"></a>
 Example: Iterating over all sections in a world</h4>
 <div class="fragment"><div class="line"><span class="preprocessor">#include &lt;stdlib.h&gt;</span></div>
 <div class="line"><span class="preprocessor">#include &lt;errno.h&gt;</span></div>
@@ -150,7 +146,7 @@ Example: Iterating over all sections in a world</h4>
 <div class="line"><span class="preprocessor">#include &lt;<a class="code" href="nbt_8h.html">nbt.h</a>&gt;</span></div>
 <div class="line"> </div>
 <div class="line"><span class="keywordtype">int</span> main(<span class="keywordtype">int</span> argc, <span class="keywordtype">char</span> **argv) {</div>
-<div class="line">    <span class="keyword">struct </span>anvil_world *world = anvil_open(<span class="stringliteral">&quot;world&quot;</span>);</div>
+<div class="line">    <span class="keyword">struct </span><a class="code hl_typedef" href="anvil_8h.html#a140f078483331488712be07218b63a27">anvil_world</a> *world = anvil_open(<span class="stringliteral">&quot;world&quot;</span>);</div>
 <div class="line">    <span class="keywordflow">if</span> (world == NULL) {</div>
 <div class="line">        printf(<span class="stringliteral">&quot;open world: %s\n&quot;</span>, strerror(errno));</div>
 <div class="line">        <span class="keywordflow">return</span> -1;</div>
@@ -200,11 +196,12 @@ Example: Iterating over all sections in a world</h4>
 <div class="line">    anvil_close(world);</div>
 <div class="line">}</div>
 <div class="ttc" id="aanvil_8h_html"><div class="ttname"><a href="anvil_8h.html">anvil.h</a></div></div>
+<div class="ttc" id="aanvil_8h_html_a140f078483331488712be07218b63a27"><div class="ttname"><a href="anvil_8h.html#a140f078483331488712be07218b63a27">anvil_world</a></div><div class="ttdeci">struct anvil_world anvil_world</div><div class="ttdef"><b>Definition:</b> anvil.h:180</div></div>
 <div class="ttc" id="anbt_8h_html"><div class="ttname"><a href="nbt_8h.html">nbt.h</a></div></div>
-</div><!-- fragment --><h3><a class="anchor" id="autotoc_md11"></a>
-&lt;a href="./include/dh.h" &gt;dh.h&lt;/a&gt;</h3>
+</div><!-- fragment --><h3><a class="anchor" id="autotoc_md12"></a>
+@link dh.h @endlink</h3>
 <p>Methods for dealing with DH LODs</p>
-<h4><a class="anchor" id="autotoc_md12"></a>
+<h4><a class="anchor" id="autotoc_md13"></a>
 Example: Generate DH LODs for entire minecraft world</h4>
 <div class="fragment"><div class="line"><span class="preprocessor">#include &lt;stdio.h&gt;</span></div>
 <div class="line"><span class="preprocessor">#include &lt;stdlib.h&gt;</span></div>
@@ -215,7 +212,7 @@ Example: Generate DH LODs for entire minecraft world</h4>
 <div class="line"><span class="preprocessor">#include &lt;<a class="code" href="dh_8h.html">dh.h</a>&gt;</span></div>
 <div class="line"> </div>
 <div class="line"><span class="keywordtype">int</span> main(<span class="keywordtype">int</span> argc, <span class="keywordtype">char</span> **argv) {</div>
-<div class="line">    <span class="keyword">struct </span>anvil_world *world = anvil_open(<span class="stringliteral">&quot;world&quot;</span>);</div>
+<div class="line">    <span class="keyword">struct </span><a class="code hl_typedef" href="anvil_8h.html#a140f078483331488712be07218b63a27">anvil_world</a> *world = anvil_open(<span class="stringliteral">&quot;world&quot;</span>);</div>
 <div class="line">    <span class="keywordflow">if</span> (world == NULL) {</div>
 <div class="line">        printf(<span class="stringliteral">&quot;open world: %s\n&quot;</span>, strerror(errno));</div>
 <div class="line">        <span class="keywordflow">return</span> -1;</div>
@@ -265,10 +262,8 @@ Example: Generate DH LODs for entire minecraft world</h4>
 <div class="ttc" id="agroup__dh_html_ga46e0055e617789181541dd696cbbc2cf"><div class="ttname"><a href="group__dh.html#ga46e0055e617789181541dd696cbbc2cf">dh_lod_free</a></div><div class="ttdeci">void dh_lod_free(struct dh_lod *lod)</div><div class="ttdef"><b>Definition:</b> dh_lod.c:489</div></div>
 <div class="ttc" id="agroup__dh_html_gabae306022a80adcc272e7af4cfa16061"><div class="ttname"><a href="group__dh.html#gabae306022a80adcc272e7af4cfa16061">dh_from_chunks</a></div><div class="ttdeci">dh_result dh_from_chunks(const struct anvil_chunk *chunks, struct dh_lod *lod)</div><div class="ttdef"><b>Definition:</b> dh_lod_generate.c:191</div></div>
 <div class="ttc" id="astructdh__lod_html"><div class="ttname"><a href="structdh__lod.html">dh_lod</a></div><div class="ttdef"><b>Definition:</b> dh.h:40</div></div>
-</div><!-- fragment --><h3><a class="anchor" id="autotoc_md13"></a>
-&lt;a href="./include/lod.h" &gt;lod.h&lt;/a&gt;</h3>
-<h3><a class="anchor" id="autotoc_md14"></a>
-&lt;a href="./include/nbt.h" &gt;nbt.h&lt;/a&gt;</h3>
+</div><!-- fragment --><h3><a class="anchor" id="autotoc_md14"></a>
+@link nbt.h @endlink</h3>
 <p>Very <em>very</em> fast NBT parsing library: ~5µs/chunk to traverse all chunk data in a world. It does not offer any intermediate representation of NBT data.</p>
 <p>Methods operate directly on the serialised data, which makes it fast as all get-out for parsing and making changes to serialised data. However some use cases do not need changes to be serialised, and can benefit from storing changes in an intermediate data format - this library is not for those use cases. For example, changing the name of a tag 100 times (with different lengths) means all data serialised after it needs to be moved 100 times, wheras copying the NBT data to a different location in memory allows the copy to be modified without reshuffling.</p>
 <p>This approach also comes with an ergonomic downside; It's quite low-level - nuances of the NBT format are not abstracted away by this library, not really. It is cumbersome to use, and it's easy to write users of it that accidentally step through NBT data multiple times (one of the examples below does exactly that!). So, if you're going to use it, make sure you're aware of how the NBT format works and note that even if you know how the NBT format works, this library will still be a pain to use.</p>
@@ -317,10 +312,8 @@ Dependencies</h2>
 <ul>
 <li>libdeflate</li>
 <li>liblz4</li>
-<li>libzstd</li>
 <li>liblzma</li>
 <li>sqlite3</li>
-<li>libpq</li>
 </ul>
 <h1><a class="anchor" id="autotoc_md17"></a>
 References</h1>
