@@ -1,0 +1,5 @@
+#cmakedefine HAS_IMMINTRIN_PEXT_U32
+#cmakedefine HAS_IMMINTRIN_PDEP_U32
+#cmakedefine HAS_SYSMMAN_MREMAP
+#cmakedefine HAS_OPENAT
+#cmakedefine HAS_WINDOWS

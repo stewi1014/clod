@@ -1,0 +1,11 @@
+#ifndef CLOD_CONFIG_H
+#define CLOD_CONFIG_H
+
+#define CLOD_COMMIT_HASH "@COMMIT_HASH@"
+
+#cmakedefine01 HAVE_MREMAP
+#cmakedefine01 HAVE_STATX
+#cmakedefine01 HAVE_PTHREAD
+#cmakedefine01 HAVE_CLOCK_GETTIME
+
+#endif

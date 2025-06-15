@@ -1,0 +1,8 @@
+#cmakedefine01 HAVE_WINDOWS
+#cmakedefine01 HAVE_UNIX
+
+#cmakedefine01 HAVE_MREMAP
+#cmakedefine01 HAVE_OFD_LOCKS
+
+#cmakedefine01 HAVE_THREADS_MUTEX
+#cmakedefine01 HAVE_PTHREAD_MUTEX

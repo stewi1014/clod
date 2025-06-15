@@ -1,0 +1,28 @@
+#ifndef PLATFORM_H
+#define PLATFORM_H
+
+#include "platform_impl.h"
+#include "error.h"
+#include <../../include/clod/region.h>
+
+struct dir;
+bool dir_open(struct dir *dir, const char *path,
+	const struct region_opts *opts, struct error_details *err);
+bool dir_close(struct dir *dir, struct error_details *err);
+
+struct dir_iter;
+bool dir_iter_open(struct dir_iter *iter, struct dir *dir, struct error_details *err);
+const char *dir_iter_next(struct dir_iter *iter, struct error_details *err);
+bool dir_iter_close(struct dir_iter *iter, struct error_details *err);
+
+struct file;
+#define FILE_OPEN_OK 0
+#define FILE_OPEN_NOT_EXIST 1
+#define FILE_OPEN_ERROR 2
+int file_open(struct file *file, struct dir *dir, const char *name, bool create,
+	const struct region_opts *opts, struct error_details *err);
+void *file_get(struct file *file, struct error_details *err);
+void *file_truncate(struct file *file, size_t new_size, struct error_details *err);
+bool file_close(struct file *file, struct error_details *err);
+
+#endif

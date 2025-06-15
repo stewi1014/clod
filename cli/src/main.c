@@ -1,33 +1,26 @@
-/**
- * @defgroup clod clod
- * @brief CLI tool
- *
- */
+#include <assert.h>
+#include <stdlib.h>
+#include <string.h>
+#include <clod/table.h>
 
-#include <math.h>
-#include <inttypes.h>
-#include <stddef.h>
-#include <stdio.h>
+#define STR "abcd"
+#define LEN strlen(STR)
 
+int main() {
+    struct clod_table *t = clod_table_create(nullptr);
 
-#define REGION_EXTENT(coord_count) (size_t)(\
-    (coord_count) == 0 ? 1      :\
-    (coord_count) == 1 ? 1024   :\
-    (coord_count) == 2 ? 32     :\
-    (coord_count) == 3 ? 11     :\
-    (coord_count) == 4 ? 6      :\
-    (coord_count) == 5 ? 4      :\
-    (coord_count) == 6 ? 3      :\
-    (coord_count) == 7 ? 3      :\
-    (coord_count) == 8 ? 2      :\
-    (coord_count) == 9 ? 2      :\
-    (coord_count) == 10 ? 2     :\
-    0\
-)
-#define REGION_CHUNK_COUNT(coord_count) ((size_t)pow(REGION_EXTENT(coord_count), (coord_count)))
+    const char *val = STR;
 
-int main(int argc, char **argv) {
-    for (int64_t i = 0; i <= 10; i++) {
-        printf("%"PRId64": %"PRId64" %"PRId64"\n", i, REGION_EXTENT(i), REGION_CHUNK_COUNT(i));
-    }
-};
+    assert(clod_table_set(t, val, LEN));
+
+    auto iter = CLOD_TABLE_ITER_INIT;
+    assert(clod_table_iter(t, &iter));
+    assert(iter.element == val);
+    assert(iter.key_size == LEN);
+    assert(!clod_table_iter(t, &iter));
+
+    assert(clod_table_get(t, STR, LEN) == val);
+    assert(clod_table_del(t, STR, LEN) == val);
+    assert(clod_table_get(t, STR, LEN) == nullptr);
+    assert(clod_table_del(t, STR, LEN) == nullptr);
+}
