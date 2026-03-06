@@ -1,5 +1,8 @@
 # clod {#mainpage}
 
+The original code for this proejct is undergoing a large architectural change.
+When ready, this project will be reimplemented as a consumer of the [libclod](https://github.com/stewi1014/libclod) library.
+
 _A lump or mass especially of earth or clay_
 
 ##### Examples of clod in a sentence
